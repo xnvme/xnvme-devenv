@@ -35,3 +35,9 @@ sha256 = "1078dae59f0f0391e0b28c76341c53a5405bf7e9f1416a68ccaccc8fb0f80e82"
 side = "guest"
 url = "https://github.com/safl/linux/releases/download/xnvme-ci/v7.3-1/amdgpu-xnvme-7.3-dkms_7.3.0%2Bxnvme1_all.deb"
 sha256 = "2d26145d8fb610c8a16b572b2f1fed170e998d6763267ab4b5666391af863c5b"
+
+# safl/vfio-user-kvssd v0.1.12: the NVMe KV device server xNVMe's guests attach
+[[deb]]
+side = "host"
+url = "https://github.com/safl/vfio-user-kvssd/releases/download/v0.1.12/vfio-user-kvssd_0.1.12_amd64.deb"
+sha256 = "33973ba2da6b46eca1a098d1586b01e08fb8cbb9f8631fab6eff845282ea4b11"

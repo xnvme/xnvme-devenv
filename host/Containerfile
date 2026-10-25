@@ -7,3 +7,5 @@ COPY debs/ /tmp/debs/
 RUN apt-get -qy update \
  && DEBIAN_FRONTEND=noninteractive apt-get -qy install --no-install-recommends /tmp/debs/*.deb \
  && rm -rf /tmp/debs /var/lib/apt/lists/*
+# xNVMe's jobs start vfu_kvssd by path; fail the build if it does not run
+RUN vfu_kvssd --version
