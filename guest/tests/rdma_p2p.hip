@@ -5,6 +5,10 @@
 // lands in VRAM is read back through HIP and checked. The QP setup follows
 // rocm-ernic's tests/rdma_verify.c.
 //
+// It also fails if KFD evicted the process's queues at any point: the pin
+// behind the dma-buf MR must find the buffer where the NIC can reach it, as
+// an eviction under rocjitsu hangs the process only some of the time.
+//
 //   hipcc --offload-arch=gfx1250 -o rdma_p2p rdma_p2p.hip -libverbs -lhsa-runtime64
 //   ./rdma_p2p [device]
 #include <hip/hip_runtime.h>
@@ -12,6 +16,8 @@
 #include <hsa/hsa_ext_amd.h>
 #include <infiniband/verbs.h>
 #include <cstdio>
+#include <glob.h>
+#include <unistd.h>
 #include <cstdlib>
 #include <cstring>
 #include <vector>
@@ -119,6 +125,27 @@ static void wait_cq(ep *e, const char *what)
 	failures++;
 }
 
+// Milliseconds KFD has held this process's queues evicted, summed over GPUs
+static long evicted_ms(void)
+{
+	char pat[96];
+	glob_t g;
+	long sum = 0;
+	snprintf(pat, sizeof(pat), "/sys/class/kfd/kfd/proc/%d/stats_*/evicted_ms", getpid());
+	if (glob(pat, 0, nullptr, &g))
+		return -1;
+	for (size_t i = 0; i < g.gl_pathc; i++) {
+		FILE *f = fopen(g.gl_pathv[i], "r");
+		long ms = 0;
+		if (f && fscanf(f, "%ld", &ms) == 1)
+			sum += ms;
+		if (f)
+			fclose(f);
+	}
+	globfree(&g);
+	return sum;
+}
+
 static void hip(hipError_t err, const char *what)
 {
 	if (err != hipSuccess) {
@@ -224,6 +251,15 @@ int main(int argc, char **argv)
 	wait_cq(&g, "recv");
 	hip(hipMemcpy(got.data(), gpu, SZ, hipMemcpyDeviceToHost), "hipMemcpy");
 	check("SEND->VRAM", got.data() + 40960, pat.data(), 4096);
+
+	long ms = evicted_ms();
+	if (ms < 0) {
+		printf("FAIL %-12s no KFD stats for this process\n", "eviction");
+		failures++;
+	} else if (ms > 0) {
+		printf("FAIL %-12s KFD evicted the queues (evicted_ms %ld)\n", "eviction", ms);
+		failures++;
+	}
 
 	printf("\n%s (%d failure%s)\n", failures ? "FAILED" : "PASSED", failures,
 	       failures == 1 ? "" : "s");
