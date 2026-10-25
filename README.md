@@ -25,8 +25,11 @@ new kernel install the producers' DKMS debs on their own kernel instead.
 
 ## Making a release
 
-`make host`, then `make derive qualify` inside the host container, as
-`.github/workflows/ci.yml` runs them on every push. A `v*` tag publishes the
+`make host ci WORKDIR=<dir>` builds the host container, then derives and
+qualifies the guest inside it, the same line `.github/workflows/ci.yml` runs
+on every push, so a CI failure reproduces locally with it. `<dir>` needs some
+45G free; `make logs WORKDIR=<dir>` prints the ends of the guests' consoles
+and the servers' logs afterwards. A `v*` tag publishes the
 host as `ghcr.io/xnvme/xnvme-images/host:<tag>` and the guest, with the
 lock it was made from, as `ghcr.io/xnvme/xnvme-images/guest-ubuntu-2610:<tag>`.
 

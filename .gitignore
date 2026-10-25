@@ -1,3 +1,4 @@
 host/debs/
 cijoe/cijoe-output*/
 cijoe/*.egg-info/
+/.work/

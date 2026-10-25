@@ -21,8 +21,8 @@ env:
   GUEST_IMAGE: ghcr.io/${{ github.repository }}/guest-ubuntu-2610
 
 jobs:
-  # Derive and qualify run inside the host container, privileged for KVM, with
-  # the runner's large /mnt for the images: what xNVMe's jobs will run in.
+  # 'make host ci' is the whole run, as it is locally; the runner's large /mnt
+  # takes the images, and the job only adds publishing on a tag.
   release:
     runs-on: ubuntu-24.04
     timeout-minutes: 180
@@ -39,23 +39,11 @@ jobs:
     - name: Derive the guest, then qualify it against the host's servers
       run: |
         sudo mkdir -p /mnt/xi && sudo chown "$(id -u):$(id -g)" /mnt/xi
-        docker run --rm --privileged -v /mnt/xi:/mnt/xi -v "$PWD:/src" -w /src \
-          -e HOME=/mnt/xi/home xnvme-images-host:local bash -euxo pipefail -c '
-            mkdir -p "$HOME/run"
-            export PATH=$HOME/.local/bin:$PATH
-            pipx install ./cijoe --include-deps --force >/dev/null
-            make derive qualify
-          '
+        make ci HOST_IMAGE=xnvme-images-host:local WORKDIR=/mnt/xi
 
     - name: Collect the guest serial consoles and the server logs
       if: always()
-      run: |
-        for f in /mnt/xi/home/guests/xnvme-images-*/serial.output \
-          /mnt/xi/home/run/vfio-user-*.log; do
-          echo "::group::$f (tail)"
-          sudo tail -c 20000 "$f" 2>/dev/null || echo "missing"
-          echo "::endgroup::"
-        done
+      run: make logs WORKDIR=/mnt/xi SUDO=sudo
 
     - uses: actions/upload-artifact@v6.0.0
       if: always()
