@@ -30,14 +30,31 @@ side = "host"
 url = "https://github.com/safl/rocm-systems/releases/download/xnvme-ci/v0.3.0-2/rocjitsu-host_0.3.0%2Bxnvme2_amd64.deb"
 sha256 = "1078dae59f0f0391e0b28c76341c53a5405bf7e9f1416a68ccaccc8fb0f80e82"
 
-# safl/linux xnvme-ci/v7.3-1: amdgpu with the GC 12.1 fixes, as DKMS for 7.3 kernels
+# safl/linux xnvme-ci/v7.3-2: the guests' kernel, with the io_uring dma-buf
+# series, and amdgpu with the GC 12.1 fixes as DKMS, built for it here
 [[deb]]
 side = "guest"
-url = "https://github.com/safl/linux/releases/download/xnvme-ci/v7.3-1/amdgpu-xnvme-7.3-dkms_7.3.0%2Bxnvme1_all.deb"
-sha256 = "2d26145d8fb610c8a16b572b2f1fed170e998d6763267ab4b5666391af863c5b"
+url = "https://github.com/safl/linux/releases/download/xnvme-ci/v7.3-2/linux-image-7.3.0-xnvme2_7.3.0-xnvme2_amd64.deb"
+sha256 = "d69788efea8362017ad8493899c6a78554868283cc5d0e736a1d75944885a8d0"
+
+[[deb]]
+side = "guest"
+url = "https://github.com/safl/linux/releases/download/xnvme-ci/v7.3-2/linux-headers-7.3.0-xnvme2_7.3.0-xnvme2_amd64.deb"
+sha256 = "0035ffff622a6a4f2268693276dea8ef7f0be955b08375922be36717225cf549"
+
+[[deb]]
+side = "guest"
+url = "https://github.com/safl/linux/releases/download/xnvme-ci/v7.3-2/amdgpu-xnvme-7.3-dkms_7.3.0%2Bxnvme2_all.deb"
+sha256 = "384497487a159728ad830354263ce608486499eb67b51363fe03a52a2a3af52d"
 
 # safl/vfio-user-kvssd v0.1.12: the NVMe KV device server xNVMe's guests attach
 [[deb]]
 side = "host"
 url = "https://github.com/safl/vfio-user-kvssd/releases/download/v0.1.12/vfio-user-kvssd_0.1.12_amd64.deb"
 sha256 = "33973ba2da6b46eca1a098d1586b01e08fb8cbb9f8631fab6eff845282ea4b11"
+
+# safl/upcie v0.10.1: its experimental kernel modules, dmabuf_import and iommu_map_pa, as DKMS
+[[deb]]
+side = "guest"
+url = "https://github.com/safl/upcie/releases/download/v0.10.1/upcie-experimental-dkms_0.10.1_all.deb"
+sha256 = "0d4c8dfbdc12813f313f5e70c739e60323b2e2c41baf0172f7ca7e938cfe4e23"

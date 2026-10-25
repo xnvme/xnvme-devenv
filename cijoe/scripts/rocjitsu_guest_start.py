@@ -8,8 +8,8 @@ then the guest with the NIC attached. The GPU is not attached here: amdgpu has
 to be loaded with its options before the GPU appears, so rocjitsu_gpu_attach
 hot-plugs it later over the guest's QMP socket, onto the port left free here.
 
-The NIC and the GPU's port are the two downstream ports of one emulated PCIe
-switch. The guest kernel allows peer-to-peer DMA between devices behind one
+The NIC, the GPU's port and an emulated NVMe drive are the downstream ports
+of one emulated PCIe switch. The guest kernel allows peer-to-peer DMA between devices behind one
 switch, whereas between root ports it would need the q35 host bridge on its
 whitelist, and amdgpu would quietly fall back to system memory.
 
@@ -34,6 +34,7 @@ from cijoe.qemu.wrapper import Guest
 # Bus names the attach step hot-plugs the GPU onto and checks against
 NIC_PORT = "dn1"
 GPU_PORT = "dn2"
+NVME_PORT = "dn3"
 
 
 def add_args(parser: ArgumentParser):
@@ -161,6 +162,12 @@ def main(args, cijoe):
         '{"driver":"vfio-user-pci","id":"nic0","bus":"' + NIC_PORT + '",'
         '"rombar":0,"socket":{"type":"unix","path":"' + ernic_socket + '"}}'
     )
+    # A scratch drive for the kernel checks; its content does not matter
+    nvme_img = guest.guest_path / "nvme0.img"
+    err, _ = cijoe.run_local(f"truncate -s 1G {nvme_img}")
+    if err:
+        return err
+
     extra_args = [
         "-machine",
         "memory-backend=mem0",
@@ -175,7 +182,13 @@ def main(args, cijoe):
         "-device",
         f"xio3130-downstream,id={GPU_PORT},bus=up1,chassis=3,slot=1",
         "-device",
+        f"xio3130-downstream,id={NVME_PORT},bus=up1,chassis=4,slot=2",
+        "-device",
         f"'{ernic_dev}'",
+        "-drive",
+        f"file={nvme_img},if=none,id=nvm0,format=raw,cache=none",
+        "-device",
+        f"nvme,serial=xnvme-images,drive=nvm0,bus={NVME_PORT}",
         "-qmp",
         f"unix:{guest.guest_path / 'qmp.sock'},server,nowait",
     ]

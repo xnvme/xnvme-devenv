@@ -11,6 +11,8 @@ WORKDIR ?= $(CURDIR)/.work
 # The container writes as root; reading what it left may need sudo
 SUDO ?=
 export XI_GUEST_BASE := $(shell $(lock) guest)
+# Our kernel's release, as named by the linux-image deb the lock pins
+export XI_KERNEL := $(shell python3 -c 'import re,tomllib; print(*{m.group(1) for d in tomllib.load(open("lock.toml","rb"))["deb"] if (m := re.search(r"/linux-image-([^_/]+)_", d["url"]))})')
 
 .PHONY: host ci logs guest-debs derive qualify clean
 

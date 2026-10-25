@@ -7,6 +7,8 @@ doc: |
   brings up with the amdgpu the image carries. Then runs a GEMM on the GPU
   and RDMA WRITE, READ and SEND into and out of VRAM, and checks with the
   NIC's server that the transfers went through VRAM rather than system memory.
+  Before those, checks that the guest runs our kernel and that io_uring moves
+  data between an emulated NVMe drive and a dma-buf.
 
 steps:
 - name: guest_kill
@@ -32,6 +34,13 @@ steps:
   uses: rocjitsu_gpu_attach
   with:
     guest_name: qualify
+
+# Our kernel, not the stock one, and its io_uring dma-buf support against the
+# emulated NVMe drive
+- name: test_kernel
+  run: |
+    uname -r | grep -x '{{ config.derive.kernel }}'
+    rocjitsu-guest-check iouring-dmabuf /dev/nvme0n1
 
 - name: test_gemm
   run: |

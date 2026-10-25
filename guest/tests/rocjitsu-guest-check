@@ -1,12 +1,15 @@
 #!/bin/sh
-# Qualify a rocjitsu GPU from inside the guest.
+# Qualify an xnvme-images guest from inside it: its rocjitsu GPU and its kernel.
 #
 #   rocjitsu-guest-check gemm          FP32 GEMM on the GPU, checked on the CPU
 #   rocjitsu-guest-check p2p [ibdev]   RDMA into and out of VRAM on a NIC
+#   rocjitsu-guest-check iouring-dmabuf <blockdev>
+#                                      io_uring I/O through a dma-buf, which
+#                                      needs the guest's own kernel
 #
-# Each test is compiled for gfx1250 on first use. Both run with the hotswap
-# library skipped: Ubuntu's ROCr insists on it for a gfx1250 A0 agent and fails
-# hsa_init without it, and nothing ships it.
+# Each test is compiled on first use, the HIP ones for gfx1250. All run with
+# the hotswap library skipped: Ubuntu's ROCr insists on it for a gfx1250 A0
+# agent and fails hsa_init without it, and nothing ships it.
 #
 # A test still running after ROCJITSU_CHECK_TIMEOUT seconds (600) has hung
 # rather than slowed, as a process does whose queues KFD evicted and never got
@@ -23,9 +26,14 @@ mkdir -p "$cache"
 build() {
 	name=$1
 	shift
-	[ "$cache/$name" -nt "$src/$name.hip" ] && return
-	hipcc --offload-arch=gfx1250 -o "$cache/$name" "$src/$name.hip" "$@" \
-		2>"$cache/$name.log" || {
+	if [ -f "$src/$name.c" ]; then
+		[ "$cache/$name" -nt "$src/$name.c" ] && return
+		set -- cc -o "$cache/$name" "$src/$name.c" "$@"
+	else
+		[ "$cache/$name" -nt "$src/$name.hip" ] && return
+		set -- hipcc --offload-arch=gfx1250 -o "$cache/$name" "$src/$name.hip" "$@"
+	fi
+	"$@" 2>"$cache/$name.log" || {
 		cat "$cache/$name.log" >&2
 		exit 1
 	}
@@ -62,8 +70,13 @@ p2p)
 	shift
 	run "$cache/rdma_p2p" "$@"
 	;;
+iouring-dmabuf)
+	build iouring_dmabuf -luring
+	shift
+	run "$cache/iouring_dmabuf" "$@"
+	;;
 *)
-	sed -n '4,5s/^#   //p' "$0" >&2
+	sed -n '4,8s/^#   //p' "$0" >&2
 	exit 2
 	;;
 esac

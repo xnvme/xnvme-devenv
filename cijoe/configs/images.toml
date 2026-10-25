@@ -52,6 +52,7 @@ disk.path = "{{ local.env.HOME }}/system_imaging/disk/xnvme-images-guest.qcow2"
 
 [derive]
 debs = "/tmp/xnvme-images/guest-debs"
+kernel = "{{ local.env.XI_KERNEL }}"
 gz_path = "{{ local.env.HOME }}/system_imaging/disk/xnvme-images-guest-x86_64.img.gz"
 
 [rocm_ernic]

@@ -5,16 +5,17 @@ and the host container that serves its emulated devices, under one tag.
 
 | Image | What |
 | ----- | ---- |
-| guest | nosi's `ubuntu-2610-rocm` with the guest drivers built in by DKMS: `ionic-ernic` and the amdgpu GC 12.1 fixes, plus the rocjitsu firmware stubs and options |
+| guest | nosi's `ubuntu-2610-rocm` booting our kernel, 7.3 with the io_uring dma-buf series, and the guest drivers built for it by DKMS: `ionic-ernic`, the amdgpu GC 12.1 fixes and upcie's modules, plus the rocjitsu firmware stubs and options |
 | host  | nosi's `ubuntu-2604-docker`, which has stock QEMU and cijoe, with the vfio-user servers: rocm-ernic, rocjitsu, vfu_kvssd |
 
 The two are released together because what breaks silently crosses between
-them: the rocm-ernic server and its guest driver, rocjitsu and its firmware. xNVMe pins one tag for both.
+them: the rocm-ernic server and its guest driver, rocjitsu and its firmware,
+our kernel and the modules built for it. xNVMe pins one tag for both.
 
 Nothing is built here from source. The pieces are debs released by their
 producers, listed by URL and sha256 in one lock file: the `xnvme-ci/*` tags
-of the safl forks of rocm-ernic, rocm-systems and linux, and
-vfio-user-kvssd's releases. A release boots the guest under the host container and
+of the safl forks of rocm-ernic, rocm-systems and linux, and the
+releases of upcie and vfio-user-kvssd. A release boots the guest under the host container and
 qualifies it, a GEMM on the emulated GPU and NIC to VRAM DMA among the
 checks, before either image is published.
 
