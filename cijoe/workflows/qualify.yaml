@@ -46,6 +46,10 @@ steps:
   run: |
     rocjitsu-guest-check gemm
 
+- name: test_vram_io
+  run: |
+    rocjitsu-guest-check iouring-vram /dev/nvme0n1
+
 - name: test_p2p
   run: |
     rocjitsu-guest-check p2p {{ config.rocm_ernic.transport.ibdev }}

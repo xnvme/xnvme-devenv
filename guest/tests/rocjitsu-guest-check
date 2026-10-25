@@ -6,6 +6,8 @@
 #   rocjitsu-guest-check iouring-dmabuf <blockdev>
 #                                      io_uring I/O through a dma-buf, which
 #                                      needs the guest's own kernel
+#   rocjitsu-guest-check iouring-vram <blockdev>
+#                                      the same, the device DMAing into VRAM
 #
 # Each test is compiled on first use, the HIP ones for gfx1250. All run with
 # the hotswap library skipped: Ubuntu's ROCr insists on it for a gfx1250 A0
@@ -75,8 +77,13 @@ iouring-dmabuf)
 	shift
 	run "$cache/iouring_dmabuf" "$@"
 	;;
+iouring-vram)
+	build iouring_vram -luring -lhsa-runtime64
+	shift
+	run "$cache/iouring_vram" "$@"
+	;;
 *)
-	sed -n '4,8s/^#   //p' "$0" >&2
+	sed -n '4,10s/^#   //p' "$0" >&2
 	exit 2
 	;;
 esac
