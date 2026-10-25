@@ -12,7 +12,7 @@ export XI_GUEST_BASE := $(shell $(lock) guest)
 host:
 	rm -rf host/debs
 	python3 tools/fetch-debs.py lock.toml host host/debs
-	$(DOCKER) build -t $(HOST_IMAGE) --build-arg BASE=$$($(lock) host) host
+	$(DOCKER) build -t $(HOST_IMAGE) -f host/Containerfile --build-arg BASE=$$($(lock) host) host
 
 guest-debs:
 	rm -rf /tmp/xnvme-images/guest-debs
