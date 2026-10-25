@@ -8,11 +8,6 @@ guest's kernel here, once per release rather than per test run, and checks
 that the modules took the place of the kernel's own. Installs the guest
 checks, rocjitsu-guest-check and its sources, from guest/tests.
 
-nosi's ubuntu-2610-rocm up to 2026.W43 carried its own build of ionic-ernic,
-registered with DKMS under the name the ionic-ernic package uses; it is
-removed first when present. Images after that carry none, and the step finds
-nothing to remove.
-
 Retargetable: false
 -------------------
 """
@@ -23,15 +18,6 @@ from pathlib import Path
 
 TESTS = Path(__file__).resolve().parents[2] / "guest" / "tests"
 REMOTE = "/tmp/xnvme-images"
-
-LEGACY_ERNIC = (
-    "if [ -d /usr/src/ionic-ernic-7.3 ] && ! dpkg -S /usr/src/ionic-ernic-7.3 >/dev/null 2>&1; then "
-    "dkms remove ionic-ernic/7.3 --all || true; "
-    "rm -rf /usr/src/ionic-ernic-7.3 /opt/rocm-ernic /usr/local/share/rocm-ernic "
-    "/etc/udev/rules.d/99-rocm-ernic.rules /etc/modules-load.d/rocm-ernic.conf; "
-    "echo 'removed the image-built ionic-ernic'; fi"
-)
-
 
 def add_args(parser: ArgumentParser):
     parser.add_argument("--debs", type=str, default=None)
@@ -45,7 +31,7 @@ def main(args, cijoe):
         log.error("no guest debs to install")
         return errno.ENOENT
 
-    err, _ = cijoe.run(f"mkdir -p {REMOTE} && {LEGACY_ERNIC}")
+    err, _ = cijoe.run(f"mkdir -p {REMOTE}")
     if err:
         return err
     for path in [*debs, *sorted(TESTS.iterdir())]:

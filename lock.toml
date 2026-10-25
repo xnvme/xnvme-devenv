@@ -3,8 +3,8 @@
 
 [nosi]
 # The guest's base, as the digest of its .img.gz layer, which is what cijoe's
-# system_imaging stages. ubuntu-2610-rocm:2026.W43.
-guest = "ghcr.io/safl/nosi/ubuntu-2610-rocm@sha256:a778f9a6ce500ca4165638b0cad7db5d3b5f34cec369df9d5d0c1c0f55213106"
+# system_imaging stages. ubuntu-2610-rocm:2026.W43, built from nosi e742b02.
+guest = "ghcr.io/safl/nosi/ubuntu-2610-rocm@sha256:33a34476eee7f0ab9ced75c2c115c107e3f52bd5bd0084528b5079ac74019ad4"
 # The host container's base, by manifest digest; it has stock QEMU and cijoe.
 host = "ghcr.io/safl/nosi/ubuntu-2604-docker@sha256:0c73b119fa5cd0b0388d45250b306039daf91be283ee8aed8e27be7deead2ab4"
 
