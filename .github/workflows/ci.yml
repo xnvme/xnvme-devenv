@@ -1,0 +1,86 @@
+---
+name: ci
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    shell: bash
+
+env:
+  HOST_IMAGE: ghcr.io/${{ github.repository }}/host
+  GUEST_IMAGE: ghcr.io/${{ github.repository }}/guest-ubuntu-2610
+
+jobs:
+  # Derive and qualify run inside the host container, privileged for KVM, with
+  # the runner's large /mnt for the images: what xNVMe's jobs will run in.
+  release:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 180
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+    - uses: actions/checkout@v6
+
+    - name: Build the host container
+      run: make host HOST_IMAGE=xnvme-images-host:local
+
+    - name: Derive the guest, then qualify it against the host's servers
+      run: |
+        sudo mkdir -p /mnt/xi && sudo chown "$(id -u):$(id -g)" /mnt/xi
+        docker run --rm --privileged -v /mnt/xi:/mnt/xi -v "$PWD:/src" -w /src \
+          -e HOME=/mnt/xi/home xnvme-images-host:local bash -euxo pipefail -c '
+            mkdir -p "$HOME/run"
+            export PATH=$HOME/.local/bin:$PATH
+            pipx install ./cijoe --include-deps --force >/dev/null
+            make derive qualify
+          '
+
+    - name: Collect the guest serial consoles and the server logs
+      if: always()
+      run: |
+        for f in /mnt/xi/home/guests/xnvme-images-*/serial.output \
+          /mnt/xi/home/run/vfio-user-*.log; do
+          echo "::group::$f (tail)"
+          sudo tail -c 20000 "$f" 2>/dev/null || echo "missing"
+          echo "::endgroup::"
+        done
+
+    - uses: actions/upload-artifact@v6.0.0
+      if: always()
+      with:
+        name: cijoe-reports
+        path: cijoe/cijoe-output-*/report.html
+        if-no-files-found: warn
+
+    - uses: oras-project/setup-oras@v2
+      if: github.ref_type == 'tag'
+
+    # The guest carries the lock it was made from, so a staged image says what is in it
+    - name: Publish the guest and the host under the tag
+      if: github.ref_type == 'tag'
+      env:
+        TAG: ${{ github.ref_name }}
+        GH_TOKEN: ${{ github.token }}
+      run: |
+        echo "$GH_TOKEN" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+        echo "$GH_TOKEN" | oras login ghcr.io -u "${{ github.actor }}" --password-stdin
+        docker tag xnvme-images-host:local "$HOST_IMAGE:$TAG"
+        docker push "$HOST_IMAGE:$TAG"
+        # Written by the container, as root
+        sudo cp lock.toml /mnt/xi/home/system_imaging/disk/
+        cd /mnt/xi/home/system_imaging/disk
+        sha256sum xnvme-images-guest-x86_64.img.gz | sudo tee xnvme-images-guest-x86_64.img.gz.sha256
+        oras push "$GUEST_IMAGE:$TAG" xnvme-images-guest-x86_64.img.gz \
+          xnvme-images-guest-x86_64.img.gz.sha256 lock.toml

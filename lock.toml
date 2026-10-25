@@ -1,0 +1,20 @@
+# Every input of a release, pinned. A release is these, assembled and
+# qualified; bumping a pin here is how anything in the images moves.
+
+[nosi]
+# The guest's base, as the digest of its .img.gz layer, which is what cijoe's
+# system_imaging stages. ubuntu-2610-rocm:2026.W43.
+guest = "ghcr.io/safl/nosi/ubuntu-2610-rocm@sha256:a778f9a6ce500ca4165638b0cad7db5d3b5f34cec369df9d5d0c1c0f55213106"
+# The host container's base, by manifest digest; it has stock QEMU and cijoe.
+host = "ghcr.io/safl/nosi/ubuntu-2604-docker@sha256:0c73b119fa5cd0b0388d45250b306039daf91be283ee8aed8e27be7deead2ab4"
+
+# safl/rocm-ernic xnvme-ci/v0.2.0-1: the server and its guest driver, one revision
+[[deb]]
+side = "host"
+url = "https://github.com/safl/rocm-ernic/releases/download/xnvme-ci/v0.2.0-1/rocm-ernic_0.2.0%2Bxnvme1_amd64.deb"
+sha256 = "02cd97de09acb0ad19d540bb1366bd62063d17b9dec2c6dd9f924853989a272d"
+
+[[deb]]
+side = "guest"
+url = "https://github.com/safl/rocm-ernic/releases/download/xnvme-ci/v0.2.0-1/ionic-ernic-7.3-dkms_0.2.0%2Bxnvme1_all.deb"
+sha256 = "e6951c1a095f0e7dd1c052437d9c673e3acdc0a070295f298af9b111e71ba41d"

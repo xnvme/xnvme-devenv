@@ -1,0 +1,44 @@
+#!/bin/sh
+# Qualify a rocjitsu GPU from inside the guest.
+#
+#   rocjitsu-guest-check gemm          FP32 GEMM on the GPU, checked on the CPU
+#   rocjitsu-guest-check p2p [ibdev]   RDMA into and out of VRAM on a NIC
+#
+# Each test is compiled for gfx1250 on first use. Both run with the hotswap
+# library skipped: Ubuntu's ROCr insists on it for a gfx1250 A0 agent and fails
+# hsa_init without it, and nothing ships it.
+#
+# p2p passing shows the bytes are right, not where they went; the NIC's
+# server says that, for rocm-ernic in its "peer memory ... served DMA" line.
+set -eu
+src=/usr/share/rocjitsu-guest-tests
+cache=${XDG_CACHE_HOME:-$HOME/.cache}/rocjitsu-guest-tests
+mkdir -p "$cache"
+
+build() {
+	name=$1
+	shift
+	[ "$cache/$name" -nt "$src/$name.hip" ] && return
+	hipcc --offload-arch=gfx1250 -o "$cache/$name" "$src/$name.hip" "$@" \
+		2>"$cache/$name.log" || {
+		cat "$cache/$name.log" >&2
+		exit 1
+	}
+}
+
+export HSA_HOTSWAP_DISABLE=1
+case "${1:-}" in
+gemm)
+	build sgemm
+	exec "$cache/sgemm"
+	;;
+p2p)
+	build rdma_p2p -libverbs -lhsa-runtime64
+	shift
+	exec "$cache/rdma_p2p" "$@"
+	;;
+*)
+	sed -n '4,5s/^#   //p' "$0" >&2
+	exit 2
+	;;
+esac
