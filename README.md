@@ -22,3 +22,15 @@ checks, before either image is published.
 The guest is for CI only and is never flashed onto a machine, so it may carry
 emulation settings that nosi must not. Machines that cannot reboot into a
 new kernel install the producers' DKMS debs on their own kernel instead.
+
+## Making a release
+
+`make host`, then `make derive qualify` inside the host container, as
+`.github/workflows/ci.yml` runs them on every push. A `v*` tag publishes the
+host as `ghcr.io/xnvme/xnvme-images/host:<tag>` and the guest, with the
+lock it was made from, as `ghcr.io/xnvme/xnvme-images/guest-ubuntu-2610:<tag>`.
+
+## Licensing
+
+BSD-3-Clause (`LICENSE`), except where a file says otherwise:
+`guest/tests/rdma_p2p.hip` is GPL-2.0-or-later, following rocm-ernic's tests.

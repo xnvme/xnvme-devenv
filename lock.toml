@@ -18,3 +18,20 @@ sha256 = "02cd97de09acb0ad19d540bb1366bd62063d17b9dec2c6dd9f924853989a272d"
 side = "guest"
 url = "https://github.com/safl/rocm-ernic/releases/download/xnvme-ci/v0.2.0-1/ionic-ernic-7.3-dkms_0.2.0%2Bxnvme1_all.deb"
 sha256 = "e6951c1a095f0e7dd1c052437d9c673e3acdc0a070295f298af9b111e71ba41d"
+
+# safl/rocm-systems xnvme-ci/v0.3.0-1: rocjitsu for the host and its firmware for the guest, one build
+[[deb]]
+side = "guest"
+url = "https://github.com/safl/rocm-systems/releases/download/xnvme-ci/v0.3.0-1/rocjitsu-guest-firmware_0.3.0%2Bxnvme1_all.deb"
+sha256 = "bab134f61e136871bbb3fca57ef8cee8ce7cb4ae07e774709a19118f97514a11"
+
+[[deb]]
+side = "host"
+url = "https://github.com/safl/rocm-systems/releases/download/xnvme-ci/v0.3.0-1/rocjitsu-host_0.3.0%2Bxnvme1_amd64.deb"
+sha256 = "01ac5fef94f11000f36d92cf52a9aeea0ba336f66a92da9f7d3798b4778bcf41"
+
+# safl/linux xnvme-ci/v7.3-1: amdgpu with the GC 12.1 fixes, as DKMS for 7.3 kernels
+[[deb]]
+side = "guest"
+url = "https://github.com/safl/linux/releases/download/xnvme-ci/v7.3-1/amdgpu-xnvme-7.3-dkms_7.3.0%2Bxnvme1_all.deb"
+sha256 = "2d26145d8fb610c8a16b572b2f1fed170e998d6763267ab4b5666391af863c5b"
