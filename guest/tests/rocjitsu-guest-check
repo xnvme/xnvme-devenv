@@ -8,6 +8,11 @@
 # library skipped: Ubuntu's ROCr insists on it for a gfx1250 A0 agent and fails
 # hsa_init without it, and nothing ships it.
 #
+# A test still running after ROCJITSU_CHECK_TIMEOUT seconds (600) has hung
+# rather than slowed, as a process does whose queues KFD evicted and never got
+# back; it is killed and fails, after the eviction counters and the kernel log
+# are printed for whoever reads why.
+#
 # p2p passing shows the bytes are right, not where they went; the NIC's
 # server says that, for rocm-ernic in its "peer memory ... served DMA" line.
 set -eu
@@ -26,16 +31,36 @@ build() {
 	}
 }
 
+# Runs a test under the deadline; the exit status is the test's, or 124
+run() {
+	"$@" &
+	pid=$!
+	left=${ROCJITSU_CHECK_TIMEOUT:-600}
+	while kill -0 "$pid" 2>/dev/null; do
+		if [ "$left" -le 0 ]; then
+			echo "rocjitsu-guest-check: $1 hung; KFD eviction counters, then the kernel log:" >&2
+			grep -H . /sys/class/kfd/kfd/proc/*/stats_*/evicted_ms >&2 || true
+			dmesg | tail -n 60 >&2 || true
+			kill -9 "$pid"
+			wait "$pid" || true
+			return 124
+		fi
+		sleep 1
+		left=$((left - 1))
+	done
+	wait "$pid"
+}
+
 export HSA_HOTSWAP_DISABLE=1
 case "${1:-}" in
 gemm)
 	build sgemm
-	exec "$cache/sgemm"
+	run "$cache/sgemm"
 	;;
 p2p)
 	build rdma_p2p -libverbs -lhsa-runtime64
 	shift
-	exec "$cache/rdma_p2p" "$@"
+	run "$cache/rdma_p2p" "$@"
 	;;
 *)
 	sed -n '4,5s/^#   //p' "$0" >&2
