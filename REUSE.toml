@@ -1,0 +1,10 @@
+version = 1
+SPDX-PackageName = "xnvme-devenv"
+SPDX-PackageSupplier = "Simon A. F. Lund <os@safl.dk>"
+SPDX-PackageDownloadLocation = "https://github.com/xnvme/xnvme-devenv"
+
+[[annotations]]
+path = "**"
+precedence = "closest"
+SPDX-FileCopyrightText = "Simon A. F. Lund <os@safl.dk>"
+SPDX-License-Identifier = "BSD-3-Clause"

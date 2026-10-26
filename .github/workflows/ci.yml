@@ -21,6 +21,14 @@ env:
   GUEST_IMAGE: ghcr.io/${{ github.repository }}/guest-ubuntu-2610
 
 jobs:
+  # Every file states its copyright and license, by its own header or REUSE.toml
+  reuse:
+    runs-on: ubuntu-24.04
+    steps:
+    - uses: actions/checkout@v6
+    - name: REUSE lint
+      run: pipx run reuse lint
+
   # 'make host ci' is the whole run, as it is locally; the runner's large /mnt
   # takes the images, and the job only adds publishing on a tag.
   release:

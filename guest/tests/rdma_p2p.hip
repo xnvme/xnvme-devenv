@@ -1,3 +1,5 @@
+// SPDX-FileCopyrightText: Advanced Micro Devices, Inc.
+// SPDX-FileCopyrightText: Simon A. F. Lund <os@safl.dk>
 // SPDX-License-Identifier: GPL-2.0-or-later
 //
 // RDMA between host memory and GPU VRAM on one NIC: two RC QPs in one process,

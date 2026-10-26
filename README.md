@@ -1,5 +1,12 @@
 # xnvme-devenv
 
+[![ci](https://github.com/xnvme/xnvme-devenv/actions/workflows/ci.yml/badge.svg)](https://github.com/xnvme/xnvme-devenv/actions/workflows/ci.yml)
+[![version](https://img.shields.io/github/v/tag/xnvme/xnvme-devenv?label=version&sort=semver)](https://github.com/xnvme/xnvme-devenv/tags)
+[![host](https://img.shields.io/badge/ghcr.io-host-blue?logo=docker)](https://github.com/orgs/xnvme/packages/container/package/xnvme-devenv%2Fhost)
+[![guest](https://img.shields.io/badge/ghcr.io-guest--ubuntu--2610-blue?logo=docker)](https://github.com/orgs/xnvme/packages/container/package/xnvme-devenv%2Fguest-ubuntu-2610)
+[![license](https://img.shields.io/badge/license-BSD--3--Clause-blue.svg)](LICENSE)
+[![REUSE](https://img.shields.io/badge/REUSE-compliant-green.svg)](REUSE.toml)
+
 Development and test environments for xNVMe and the projects built on it,
 used the same way locally and in CI, released in matched pairs: a guest image
 and the host container that serves its emulated devices, under one tag.
