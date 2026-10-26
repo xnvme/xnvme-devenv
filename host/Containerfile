@@ -5,7 +5,9 @@ ARG BASE
 FROM ${BASE}
 COPY debs/ /tmp/debs/
 RUN apt-get -qy update \
- && DEBIAN_FRONTEND=noninteractive apt-get -qy install --no-install-recommends /tmp/debs/*.deb \
+ && DEBIAN_FRONTEND=noninteractive apt-get -qy install --no-install-recommends /tmp/debs/*.deb mdadm \
  && rm -rf /tmp/debs /var/lib/apt/lists/*
 # xNVMe's jobs start vfu_kvssd by path; fail the build if it does not run
 RUN vfu_kvssd --version
+# Images can be assembled and inspected on the host while no guest runs them
+RUN mdadm --version && qemu-nbd --version
