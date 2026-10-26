@@ -46,7 +46,9 @@ on every push, so a CI failure reproduces locally with it. `<dir>` needs some
 45G free; `make logs WORKDIR=<dir>` prints the ends of the guests' consoles
 and the servers' logs afterwards. A `v*` tag publishes the
 host as `ghcr.io/xnvme/xnvme-devenv/host:<tag>` and the guest, with the
-lock it was made from, as `ghcr.io/xnvme/xnvme-devenv/guest-ubuntu-2610:<tag>`.
+lock it was made from, as `ghcr.io/xnvme/xnvme-devenv/guest-ubuntu-2610:<tag>`. It also creates a GitHub release that names both and the guest's layer
+digest to pin, with the lock, the guest image's sha256 and the cijoe reports
+of the run attached.
 
 ## Licensing
 

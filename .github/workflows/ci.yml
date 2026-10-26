@@ -35,7 +35,7 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 180
     permissions:
-      contents: read
+      contents: write
       packages: write
 
     steps:
@@ -85,3 +85,29 @@ jobs:
         sha256sum xnvme-devenv-guest-x86_64.img.gz | sudo tee xnvme-devenv-guest-x86_64.img.gz.sha256
         oras push "$GUEST_IMAGE:$TAG" xnvme-devenv-guest-x86_64.img.gz \
           xnvme-devenv-guest-x86_64.img.gz.sha256 lock.toml
+
+    # The release says what to pin: the host by tag, the guest by the digest of
+    # its .img.gz layer, which cijoe's system_imaging stages; and carries the
+    # lock and the cijoe reports of the run that made and qualified it
+    - name: Create the GitHub release, with the lock and the cijoe reports
+      if: github.ref_type == 'tag'
+      env:
+        TAG: ${{ github.ref_name }}
+        GH_TOKEN: ${{ github.token }}
+      run: |
+        layer=$(oras manifest fetch "$GUEST_IMAGE:$TAG" | jq -r \
+          '.layers[] | select(.annotations["org.opencontainers.image.title"] == "xnvme-devenv-guest-x86_64.img.gz") | .digest')
+        test -n "$layer"
+        sudo tar -czf cijoe-reports.tar.gz -C cijoe cijoe-output-host cijoe-output-derive cijoe-output-qualify
+        cp /mnt/xnvme-devenv/home/system_imaging/disk/xnvme-devenv-guest-x86_64.img.gz.sha256 .
+        cat > notes.md <<NOTES
+        Host: \`$HOST_IMAGE:$TAG\`
+
+        Guest: \`$GUEST_IMAGE:$TAG\`, whose .img.gz layer is \`$layer\`;
+        pin it as \`oras://$GUEST_IMAGE@$layer\`.
+
+        Attached: the lock it was made from, the guest image's sha256, and the cijoe
+        reports of the host build, the derive and the qualification.
+        NOTES
+        gh release create "$TAG" --title "$TAG" --notes-file notes.md \
+          lock.toml xnvme-devenv-guest-x86_64.img.gz.sha256 cijoe-reports.tar.gz
