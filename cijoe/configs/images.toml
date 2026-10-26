@@ -70,6 +70,6 @@ ibdev = "rocm-rdma-ernic0"
 [rocjitsu]
 bin = "/opt/rocjitsu/bin/rocjitsu"
 vram_bin = "/opt/rocjitsu/bin/rocjitsu-vram"
-config = "/opt/rocjitsu/share/configs/gfx1250_mi455x.json"
+config = "/opt/rocjitsu/share/configs/gfx1250_mi455x_xnvme_ci.json"
 socket = "{{ local.env.HOME }}/run/vfio-user-rocjitsu.sock"
-vram_aperture = "256M"
+vram_aperture = "2G"

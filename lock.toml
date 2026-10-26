@@ -19,16 +19,16 @@ side = "guest"
 url = "https://github.com/safl/rocm-ernic/releases/download/xnvme-ci/v0.2.0-1/ionic-ernic-7.3-dkms_0.2.0%2Bxnvme1_all.deb"
 sha256 = "e6951c1a095f0e7dd1c052437d9c673e3acdc0a070295f298af9b111e71ba41d"
 
-# safl/rocm-systems xnvme-ci/v0.3.0-2: rocjitsu for the host and its firmware for the guest, one build
+# safl/rocm-systems xnvme-ci/v0.3.0-3: rocjitsu for the host and its firmware for the guest, one build
 [[deb]]
 side = "guest"
-url = "https://github.com/safl/rocm-systems/releases/download/xnvme-ci/v0.3.0-2/rocjitsu-guest-firmware_0.3.0%2Bxnvme2_all.deb"
-sha256 = "89c7e70635b4f025de2bb9be05f07ffba72d2057f0294f5089824a68d21b44d6"
+url = "https://github.com/safl/rocm-systems/releases/download/xnvme-ci/v0.3.0-3/rocjitsu-guest-firmware_0.3.0%2Bxnvme3_all.deb"
+sha256 = "fd59194fe810dd8d924249d5714dc0a156d9715e2ad8fd87458ac6e77d090d2c"
 
 [[deb]]
 side = "host"
-url = "https://github.com/safl/rocm-systems/releases/download/xnvme-ci/v0.3.0-2/rocjitsu-host_0.3.0%2Bxnvme2_amd64.deb"
-sha256 = "1078dae59f0f0391e0b28c76341c53a5405bf7e9f1416a68ccaccc8fb0f80e82"
+url = "https://github.com/safl/rocm-systems/releases/download/xnvme-ci/v0.3.0-3/rocjitsu-host_0.3.0%2Bxnvme3_amd64.deb"
+sha256 = "02c64fff3e76675634518983f0f52bc7615568a52d13e5207bd6a1f97dffbcbf"
 
 # safl/linux xnvme-ci/v7.3-2: the guests' kernel, with the io_uring dma-buf
 # series, and amdgpu with the GC 12.1 fixes as DKMS, built for it here
@@ -53,8 +53,8 @@ side = "host"
 url = "https://github.com/safl/vfio-user-kvssd/releases/download/v0.1.12/vfio-user-kvssd_0.1.12_amd64.deb"
 sha256 = "33973ba2da6b46eca1a098d1586b01e08fb8cbb9f8631fab6eff845282ea4b11"
 
-# safl/upcie v0.10.1: its experimental kernel modules, dmabuf_import and iommu_map_pa, as DKMS
+# safl/upcie v0.10.2: its experimental kernel modules, dmabuf_import and iommu_map_pa, as DKMS
 [[deb]]
 side = "guest"
-url = "https://github.com/safl/upcie/releases/download/v0.10.1/upcie-experimental-dkms_0.10.1_all.deb"
-sha256 = "0d4c8dfbdc12813f313f5e70c739e60323b2e2c41baf0172f7ca7e938cfe4e23"
+url = "https://github.com/safl/upcie/releases/download/v0.10.2/upcie-experimental-dkms_0.10.2_all.deb"
+sha256 = "504facb6794a4557949aacc0bbf0329be8798da89b5884a927ed31d6b2e3330c"
