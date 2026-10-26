@@ -41,17 +41,22 @@ jobs:
     steps:
     - uses: actions/checkout@v6
 
+    - name: Install cijoe, which builds the host container from the lock
+      run: |
+        pipx install ./cijoe --include-deps
+        echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+
     - name: Build the host container
       run: make host HOST_IMAGE=xnvme-devenv-host:local
 
     - name: Derive the guest, then qualify it against the host's servers
       run: |
-        sudo mkdir -p /mnt/xi && sudo chown "$(id -u):$(id -g)" /mnt/xi
-        make ci HOST_IMAGE=xnvme-devenv-host:local WORKDIR=/mnt/xi
+        sudo mkdir -p /mnt/xnvme-devenv && sudo chown "$(id -u):$(id -g)" /mnt/xnvme-devenv
+        make ci HOST_IMAGE=xnvme-devenv-host:local WORKDIR=/mnt/xnvme-devenv
 
     - name: Collect the guest serial consoles and the server logs
       if: always()
-      run: make logs WORKDIR=/mnt/xi SUDO=sudo
+      run: make logs WORKDIR=/mnt/xnvme-devenv SUDO=sudo
 
     - uses: actions/upload-artifact@v6.0.0
       if: always()
@@ -75,8 +80,8 @@ jobs:
         docker tag xnvme-devenv-host:local "$HOST_IMAGE:$TAG"
         docker push "$HOST_IMAGE:$TAG"
         # Written by the container, as root
-        sudo cp lock.toml /mnt/xi/home/system_imaging/disk/
-        cd /mnt/xi/home/system_imaging/disk
+        sudo cp lock.toml /mnt/xnvme-devenv/home/system_imaging/disk/
+        cd /mnt/xnvme-devenv/home/system_imaging/disk
         sha256sum xnvme-devenv-guest-x86_64.img.gz | sudo tee xnvme-devenv-guest-x86_64.img.gz.sha256
         oras push "$GUEST_IMAGE:$TAG" xnvme-devenv-guest-x86_64.img.gz \
           xnvme-devenv-guest-x86_64.img.gz.sha256 lock.toml

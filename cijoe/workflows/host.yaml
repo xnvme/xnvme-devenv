@@ -1,0 +1,19 @@
+---
+doc: |
+  Build the host container from the lock
+
+  Fetches and checks the host debs the lock pins, then builds the container
+  from the nosi base it pins; the build fails unless host_check passes in it.
+  Runs where cijoe is invoked, with the container engine in DOCKER and the
+  image name in HOST_IMAGE.
+
+steps:
+- name: fetch_debs
+  uses: fetch_debs
+  with:
+    side: host
+    dest: ../host/debs
+
+- name: build
+  run: |
+    cd .. && {{ local.env.DOCKER }} build -t {{ local.env.HOST_IMAGE }} -f host/Containerfile --build-arg BASE={{ config.lock.nosi.host }} .

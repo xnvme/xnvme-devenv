@@ -1,13 +1,14 @@
 # The host half of a release: nosi's ubuntu-2604-docker, which has stock QEMU
-# and cijoe, with the vfio-user servers from lock.toml installed. Built by
-# `make host`, which fetches and checks the debs into host/debs first.
+# and cijoe, with the vfio-user servers from lock.toml installed and this
+# repository's cijoe environment under /opt/xnvme-devenv. Built by 'make host',
+# from the repository's root, after cijoe has fetched and checked the debs.
 ARG BASE
 FROM ${BASE}
-COPY debs/ /tmp/debs/
+COPY host/debs/ /tmp/debs/
 RUN apt-get -qy update \
  && DEBIAN_FRONTEND=noninteractive apt-get -qy install --no-install-recommends /tmp/debs/*.deb mdadm \
  && rm -rf /tmp/debs /var/lib/apt/lists/*
-# xNVMe's jobs start vfu_kvssd by path; fail the build if it does not run
-RUN vfu_kvssd --version
-# Images can be assembled and inspected on the host while no guest runs them
-RUN mdadm --version && qemu-nbd --version
+COPY cijoe/ /opt/xnvme-devenv/cijoe/
+# An image without a tool the environments rely on is never published
+RUN cd /opt/xnvme-devenv/cijoe && cijoe workflows/host-check.yaml --config configs/host-check.toml --monitor --no-report --output /tmp/host-check \
+ && rm -rf /tmp/host-check

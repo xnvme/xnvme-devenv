@@ -11,6 +11,9 @@ doc: |
   data between an emulated NVMe drive and a dma-buf.
 
 steps:
+- name: host_check
+  uses: host_check
+
 - name: guest_kill
   uses: qemu.guest_kill
   with:
@@ -39,7 +42,7 @@ steps:
 # emulated NVMe drive
 - name: test_kernel
   run: |
-    uname -r | grep -x '{{ config.derive.kernel }}'
+    uname -r | grep -x '{{ config.lock.kernel.release }}'
     rocjitsu-guest-check iouring-dmabuf /dev/nvme0n1
 
 # HIP programs other than the guest checks, xNVMe's among them, rely on it

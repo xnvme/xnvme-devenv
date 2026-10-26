@@ -1,6 +1,6 @@
 # Deriving the guest from nosi and qualifying it against the host's servers.
-# The servers are the ones the host container installs; the guest base comes
-# from lock.toml through XI_GUEST_BASE, which the Makefile exports.
+# The servers are the ones the host container installs. Taken with lock.toml,
+# which gives the nosi base's oras.url and everything else a release pins.
 
 [cijoe.transport.root]
 username = "root"
@@ -42,7 +42,6 @@ system_args.tcp_forward = {host = 4200, guest = 22}
 
 [system-imaging.images.nosi-base-x86_64]
 system_label = "x86_64"
-oras.url = "oras://{{ local.env.XI_GUEST_BASE }}"
 disk.path = "{{ local.env.HOME }}/system_imaging/disk/nosi-base.qcow2"
 
 # What derive produces and qualify boots
@@ -52,7 +51,6 @@ disk.path = "{{ local.env.HOME }}/system_imaging/disk/xnvme-devenv-guest.qcow2"
 
 [derive]
 debs = "/tmp/xnvme-devenv/guest-debs"
-kernel = "{{ local.env.XI_KERNEL }}"
 gz_path = "{{ local.env.HOME }}/system_imaging/disk/xnvme-devenv-guest-x86_64.img.gz"
 
 [rocm_ernic]

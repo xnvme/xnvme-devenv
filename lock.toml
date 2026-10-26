@@ -1,60 +1,70 @@
 # Every input of a release, pinned. A release is these, assembled and
 # qualified; bumping a pin here is how anything in the images moves.
+#
+# It is a cijoe config: the workflows take it with --config next to
+# cijoe/configs/images.toml, and the guest artifact a release publishes
+# carries it, so a staged guest says what it was made from.
 
-[nosi]
 # The guest's base, as the digest of its .img.gz layer, which is what cijoe's
 # system_imaging stages. ubuntu-2610-rocm:2026.W43, built from nosi e742b02.
-guest = "ghcr.io/safl/nosi/ubuntu-2610-rocm@sha256:33a34476eee7f0ab9ced75c2c115c107e3f52bd5bd0084528b5079ac74019ad4"
+[system-imaging.images.nosi-base-x86_64]
+oras.url = "oras://ghcr.io/safl/nosi/ubuntu-2610-rocm@sha256:33a34476eee7f0ab9ced75c2c115c107e3f52bd5bd0084528b5079ac74019ad4"
+
 # The host container's base, by manifest digest; it has stock QEMU and cijoe.
+[lock.nosi]
 host = "ghcr.io/safl/nosi/ubuntu-2604-docker@sha256:0c73b119fa5cd0b0388d45250b306039daf91be283ee8aed8e27be7deead2ab4"
 
+# The guest's kernel, the release of the linux-image deb below
+[lock.kernel]
+release = "7.3.0-xnvme2"
+
 # safl/rocm-ernic xnvme-ci/v0.2.0-1: the server and its guest driver, one revision
-[[deb]]
+[[lock.deb]]
 side = "host"
 url = "https://github.com/safl/rocm-ernic/releases/download/xnvme-ci/v0.2.0-1/rocm-ernic_0.2.0%2Bxnvme1_amd64.deb"
 sha256 = "02cd97de09acb0ad19d540bb1366bd62063d17b9dec2c6dd9f924853989a272d"
 
-[[deb]]
+[[lock.deb]]
 side = "guest"
 url = "https://github.com/safl/rocm-ernic/releases/download/xnvme-ci/v0.2.0-1/ionic-ernic-7.3-dkms_0.2.0%2Bxnvme1_all.deb"
 sha256 = "e6951c1a095f0e7dd1c052437d9c673e3acdc0a070295f298af9b111e71ba41d"
 
 # safl/rocm-systems xnvme-ci/v0.3.0-3: rocjitsu for the host and its firmware for the guest, one build
-[[deb]]
+[[lock.deb]]
 side = "guest"
 url = "https://github.com/safl/rocm-systems/releases/download/xnvme-ci/v0.3.0-3/rocjitsu-guest-firmware_0.3.0%2Bxnvme3_all.deb"
 sha256 = "fd59194fe810dd8d924249d5714dc0a156d9715e2ad8fd87458ac6e77d090d2c"
 
-[[deb]]
+[[lock.deb]]
 side = "host"
 url = "https://github.com/safl/rocm-systems/releases/download/xnvme-ci/v0.3.0-3/rocjitsu-host_0.3.0%2Bxnvme3_amd64.deb"
 sha256 = "02c64fff3e76675634518983f0f52bc7615568a52d13e5207bd6a1f97dffbcbf"
 
 # safl/linux xnvme-ci/v7.3-2: the guests' kernel, with the io_uring dma-buf
 # series, and amdgpu with the GC 12.1 fixes as DKMS, built for it here
-[[deb]]
+[[lock.deb]]
 side = "guest"
 url = "https://github.com/safl/linux/releases/download/xnvme-ci/v7.3-2/linux-image-7.3.0-xnvme2_7.3.0-xnvme2_amd64.deb"
 sha256 = "d69788efea8362017ad8493899c6a78554868283cc5d0e736a1d75944885a8d0"
 
-[[deb]]
+[[lock.deb]]
 side = "guest"
 url = "https://github.com/safl/linux/releases/download/xnvme-ci/v7.3-2/linux-headers-7.3.0-xnvme2_7.3.0-xnvme2_amd64.deb"
 sha256 = "0035ffff622a6a4f2268693276dea8ef7f0be955b08375922be36717225cf549"
 
-[[deb]]
+[[lock.deb]]
 side = "guest"
 url = "https://github.com/safl/linux/releases/download/xnvme-ci/v7.3-2/amdgpu-xnvme-7.3-dkms_7.3.0%2Bxnvme2_all.deb"
 sha256 = "384497487a159728ad830354263ce608486499eb67b51363fe03a52a2a3af52d"
 
 # safl/vfio-user-kvssd v0.1.12: the NVMe KV device server xNVMe's guests attach
-[[deb]]
+[[lock.deb]]
 side = "host"
 url = "https://github.com/safl/vfio-user-kvssd/releases/download/v0.1.12/vfio-user-kvssd_0.1.12_amd64.deb"
 sha256 = "33973ba2da6b46eca1a098d1586b01e08fb8cbb9f8631fab6eff845282ea4b11"
 
 # safl/upcie v0.10.2: its experimental kernel modules, dmabuf_import and iommu_map_pa, as DKMS
-[[deb]]
+[[lock.deb]]
 side = "guest"
 url = "https://github.com/safl/upcie/releases/download/v0.10.2/upcie-experimental-dkms_0.10.2_all.deb"
 sha256 = "504facb6794a4557949aacc0bbf0329be8798da89b5884a927ed31d6b2e3330c"

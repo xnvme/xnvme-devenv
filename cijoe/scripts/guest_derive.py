@@ -47,7 +47,7 @@ def main(args, cijoe):
         log.error("no guest debs to install")
         return errno.ENOENT
 
-    kernel = cijoe.getconf("derive.kernel", "")
+    kernel = cijoe.getconf("lock.kernel.release", "")
     if not any(d.name.startswith(f"linux-image-{kernel}_") for d in debs):
         log.error(f"no linux-image deb for the kernel {kernel!r} among the guest debs")
         return errno.EINVAL

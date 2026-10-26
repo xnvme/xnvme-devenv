@@ -1,7 +1,7 @@
-# Assemble and qualify a release from lock.toml. derive and qualify run inside
-# the host container: it has QEMU, cijoe and the servers. 'make host ci' is
-# the whole of what CI runs, so a failure there reproduces with the same line.
-lock = python3 -c 'import tomllib,sys; print(tomllib.load(open("lock.toml","rb"))["nosi"][sys.argv[1]])'
+# Assemble and qualify a release from lock.toml. Every step is a cijoe
+# workflow taking lock.toml as config; derive and qualify run inside the host
+# container, which has QEMU, cijoe and the servers. 'make host ci' is the whole
+# of what CI runs, so a failure there reproduces with the same line.
 
 DOCKER ?= docker
 HOST_IMAGE ?= xnvme-devenv-host:local
@@ -10,16 +10,13 @@ CIJOE_OUTPUT ?= cijoe-output
 WORKDIR ?= $(CURDIR)/.work
 # The container writes as root; reading what it left may need sudo
 SUDO ?=
-export XI_GUEST_BASE := $(shell $(lock) guest)
-# Our kernel's release, as named by the linux-image deb the lock pins
-export XI_KERNEL := $(shell python3 -c 'import re,tomllib; print(*{m.group(1) for d in tomllib.load(open("lock.toml","rb"))["deb"] if (m := re.search(r"/linux-image-([^_/]+)_", d["url"]))})')
+CIJOE_CONFIGS = --config ../lock.toml --config configs/images.toml
 
-.PHONY: host ci logs guest-debs derive qualify clean
+.PHONY: host ci logs derive qualify clean
 
 host:
-	rm -rf host/debs
-	python3 tools/fetch-debs.py lock.toml host host/debs
-	$(DOCKER) build -t $(HOST_IMAGE) -f host/Containerfile --build-arg BASE=$$($(lock) host) host
+	cd cijoe && DOCKER="$(DOCKER)" HOST_IMAGE="$(HOST_IMAGE)" cijoe workflows/host.yaml --monitor \
+		--config ../lock.toml --output $(CIJOE_OUTPUT)-host
 
 ci:
 	mkdir -p $(WORKDIR)
@@ -39,17 +36,11 @@ logs:
 		echo "::endgroup::"; \
 	done
 
-guest-debs:
-	rm -rf /tmp/xnvme-devenv/guest-debs
-	python3 tools/fetch-debs.py lock.toml guest /tmp/xnvme-devenv/guest-debs
-
-derive: guest-debs
-	cd cijoe && cijoe workflows/derive.yaml --monitor --config configs/images.toml \
-		--output $(CIJOE_OUTPUT)-derive
+derive:
+	cd cijoe && cijoe workflows/derive.yaml --monitor $(CIJOE_CONFIGS) --output $(CIJOE_OUTPUT)-derive
 
 qualify:
-	cd cijoe && cijoe workflows/qualify.yaml --monitor --config configs/images.toml \
-		--output $(CIJOE_OUTPUT)-qualify
+	cd cijoe && cijoe workflows/qualify.yaml --monitor $(CIJOE_CONFIGS) --output $(CIJOE_OUTPUT)-qualify
 
 clean:
 	rm -rf host/debs cijoe/$(CIJOE_OUTPUT)-* .work

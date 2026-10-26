@@ -27,10 +27,10 @@
 
 // From the series' include/uapi/linux/io_uring.h, which the guest's headers
 // predate; as in iouring_dmabuf.c
-#define XI_RSRC_UPDATE_EXTENDED (1U << 1)
-#define XI_REGBUF_TYPE_DMABUF 2
+#define DEVENV_RSRC_UPDATE_EXTENDED (1U << 1)
+#define DEVENV_REGBUF_TYPE_DMABUF 2
 
-struct xi_rsrc_update2 {
+struct devenv_rsrc_update2 {
 	uint32_t offset;
 	uint32_t flags;
 	uint64_t data;
@@ -39,7 +39,7 @@ struct xi_rsrc_update2 {
 	uint32_t resv2;
 };
 
-struct xi_regbuf_desc {
+struct devenv_regbuf_desc {
 	uint32_t type;
 	uint32_t flags;
 	uint64_t size;
@@ -124,8 +124,8 @@ int main(int argc, char **argv)
 	err = io_uring_register_buffers_sparse(&ring, 1);
 	if (err)
 		return fail("io_uring_register_buffers_sparse", -err);
-	struct xi_regbuf_desc desc = {.type = XI_REGBUF_TYPE_DMABUF, .dmabuf_fd = fd, .target_fd = dev};
-	struct xi_rsrc_update2 up = {.flags = XI_RSRC_UPDATE_EXTENDED, .data = (uintptr_t)&desc, .nr = 1};
+	struct devenv_regbuf_desc desc = {.type = DEVENV_REGBUF_TYPE_DMABUF, .dmabuf_fd = fd, .target_fd = dev};
+	struct devenv_rsrc_update2 up = {.flags = DEVENV_RSRC_UPDATE_EXTENDED, .data = (uintptr_t)&desc, .nr = 1};
 	err = syscall(__NR_io_uring_register, ring.ring_fd, IORING_REGISTER_BUFFERS_UPDATE, &up,
 		      sizeof(up));
 	if (err != 1)

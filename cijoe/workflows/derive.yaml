@@ -8,6 +8,12 @@ doc: |
   release publishes.
 
 steps:
+- name: fetch_debs
+  uses: fetch_debs
+  with:
+    side: guest
+    dest: "{{ config.derive.debs }}"
+
 - name: guest_kill
   uses: qemu.guest_kill
   with:

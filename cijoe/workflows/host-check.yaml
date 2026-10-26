@@ -1,0 +1,7 @@
+---
+doc: |
+  Check that the host has every tool the environments rely on
+
+steps:
+- name: host_check
+  uses: host_check

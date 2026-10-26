@@ -1,0 +1,3 @@
+# Checking the host needs no target: host_check runs its tools where cijoe runs
+[cijoe.workflow]
+fail_fast = true

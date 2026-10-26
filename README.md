@@ -16,6 +16,10 @@ and the host container that serves its emulated devices, under one tag.
 | guest | nosi's `ubuntu-2610-rocm` booting our kernel, 7.3 with the io_uring dma-buf series, and the guest drivers built for it by DKMS: `ionic-ernic`, the amdgpu GC 12.1 fixes and upcie's modules, plus the rocjitsu firmware stubs and options |
 | host  | nosi's `ubuntu-2604-docker`, which has stock QEMU and cijoe, with the vfio-user servers: rocm-ernic, rocjitsu, vfu_kvssd |
 
+How xNVMe uses these environments, in CI and to reproduce a CI job on your
+own machine, is in xNVMe's documentation:
+[Continuous Integration](https://xnvme.io/contributing/ci/index.html).
+
 The two are released together because what breaks silently crosses between
 them: the rocm-ernic server and its guest driver, rocjitsu and its firmware,
 our kernel and the modules built for it. xNVMe pins one tag for both.
@@ -23,7 +27,8 @@ our kernel and the modules built for it. xNVMe pins one tag for both.
 Nothing is built here from source. The pieces are debs released by their
 producers, listed by URL and sha256 in one lock file: the `xnvme-ci/*` tags
 of the safl forks of rocm-ernic, rocm-systems and linux, and the
-releases of upcie and vfio-user-kvssd. A release boots the guest under the host container and
+releases of upcie and vfio-user-kvssd. `lock.toml` is a cijoe config, so the
+workflows read the pins from it directly. A release boots the guest under the host container and
 qualifies it, a GEMM on the emulated GPU and NIC to VRAM DMA among the
 checks, before either image is published.
 
@@ -34,7 +39,9 @@ new kernel install the producers' DKMS debs on their own kernel instead.
 ## Making a release
 
 `make host ci WORKDIR=<dir>` builds the host container, then derives and
-qualifies the guest inside it, the same line `.github/workflows/ci.yml` runs
+qualifies the guest inside it, each a cijoe workflow under `cijoe/workflows`
+with its own report; `make host` needs cijoe installed (`pipx install
+./cijoe --include-deps`). It is the same line `.github/workflows/ci.yml` runs
 on every push, so a CI failure reproduces locally with it. `<dir>` needs some
 45G free; `make logs WORKDIR=<dir>` prints the ends of the guests' consoles
 and the servers' logs afterwards. A `v*` tag publishes the
