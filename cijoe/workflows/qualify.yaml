@@ -42,6 +42,11 @@ steps:
     uname -r | grep -x '{{ config.derive.kernel }}'
     rocjitsu-guest-check iouring-dmabuf /dev/nvme0n1
 
+# HIP programs other than the guest checks, xNVMe's among them, rely on it
+- name: test_hip_env
+  run: |
+    printenv HSA_HOTSWAP_DISABLE | grep -x 1
+
 - name: test_gemm
   run: |
     rocjitsu-guest-check gemm

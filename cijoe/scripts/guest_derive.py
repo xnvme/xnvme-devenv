@@ -101,6 +101,16 @@ def main(args, cijoe):
         log.error("a DKMS module did not take the kernel's place")
         return err
 
+    # Ubuntu's ROCr insists on a hotswap library for rocjitsu's gfx1250 A0 agent,
+    # which nothing ships, and hsa_init fails without it; skipping it is what
+    # lets any HIP program run, so every login gets it, cijoe's SSH included
+    err, _ = cijoe.run(
+        "grep -qx HSA_HOTSWAP_DISABLE=1 /etc/environment || "
+        "echo HSA_HOTSWAP_DISABLE=1 >> /etc/environment"
+    )
+    if err:
+        return err
+
     # The guest checks compile on first use; the toolchain must be there
     err, _ = cijoe.run("command -v hipcc")
     if err:
