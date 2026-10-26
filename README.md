@@ -1,6 +1,7 @@
-# xnvme-images
+# xnvme-devenv
 
-Test environments for xNVMe's CI, released in matched pairs: a guest image
+Development and test environments for xNVMe and the projects built on it,
+used the same way locally and in CI, released in matched pairs: a guest image
 and the host container that serves its emulated devices, under one tag.
 
 | Image | What |
@@ -30,8 +31,8 @@ qualifies the guest inside it, the same line `.github/workflows/ci.yml` runs
 on every push, so a CI failure reproduces locally with it. `<dir>` needs some
 45G free; `make logs WORKDIR=<dir>` prints the ends of the guests' consoles
 and the servers' logs afterwards. A `v*` tag publishes the
-host as `ghcr.io/xnvme/xnvme-images/host:<tag>` and the guest, with the
-lock it was made from, as `ghcr.io/xnvme/xnvme-images/guest-ubuntu-2610:<tag>`.
+host as `ghcr.io/xnvme/xnvme-devenv/host:<tag>` and the guest, with the
+lock it was made from, as `ghcr.io/xnvme/xnvme-devenv/guest-ubuntu-2610:<tag>`.
 
 ## Licensing
 

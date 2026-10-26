@@ -1,7 +1,7 @@
 [project]
-name = "xnvme-images-cijoe"
+name = "xnvme-devenv-cijoe"
 version = "0.1.0"
-description = "CIJOE environment for the xnvme-images derive and qualification"
+description = "CIJOE environment for the xnvme-devenv derive and qualification"
 requires-python = ">=3.9"
 
 # As xNVMe pins it, so the scripts move between the two unchanged

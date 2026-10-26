@@ -29,7 +29,7 @@ def main(args, cijoe):
     """Shut the guest down, then export its disk"""
 
     guest = Guest(cijoe, cijoe.config, args.guest_name)
-    qcow2 = Path(cijoe.getconf("system-imaging.images.xnvme-images-guest-x86_64.disk.path"))
+    qcow2 = Path(cijoe.getconf("system-imaging.images.xnvme-devenv-guest-x86_64.disk.path"))
     gz = Path(cijoe.getconf("derive.gz_path"))
 
     cijoe.run("truncate -s 0 /etc/machine-id && sync")

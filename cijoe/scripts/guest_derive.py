@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Turn a running nosi guest into an xnvme-images guest
+Turn a running nosi guest into an xnvme-devenv guest
 ====================================================
 
 Installs the guest debs: our kernel, linux-image-7.3.0-xnvme<n> and its
@@ -20,7 +20,7 @@ from argparse import ArgumentParser
 from pathlib import Path
 
 TESTS = Path(__file__).resolve().parents[2] / "guest" / "tests"
-REMOTE = "/tmp/xnvme-images"
+REMOTE = "/tmp/xnvme-devenv"
 MODULES = ["amdgpu", "ionic", "ionic_rdma", "dmabuf_import", "iommu_map_pa"]
 
 

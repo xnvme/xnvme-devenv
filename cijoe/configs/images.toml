@@ -23,7 +23,7 @@ bin = "qemu-system-x86_64"
 
 # Sized as xNVMe's guests, for a GitHub-hosted runner
 [qemu.guests.derive]
-path = "{{ local.env.HOME }}/guests/xnvme-images-derive"
+path = "{{ local.env.HOME }}/guests/xnvme-devenv-derive"
 system_label = "x86_64"
 system_args.kwa = {cpu = "host", smp = 4, m = "6G", accel = "kvm"}
 system_args.raw = """\
@@ -32,7 +32,7 @@ system_args.raw = """\
 system_args.tcp_forward = {host = 4200, guest = 22}
 
 [qemu.guests.qualify]
-path = "{{ local.env.HOME }}/guests/xnvme-images-qualify"
+path = "{{ local.env.HOME }}/guests/xnvme-devenv-qualify"
 system_label = "x86_64"
 system_args.kwa = {cpu = "host", smp = 4, m = "6G", accel = "kvm"}
 system_args.raw = """\
@@ -46,14 +46,14 @@ oras.url = "oras://{{ local.env.XI_GUEST_BASE }}"
 disk.path = "{{ local.env.HOME }}/system_imaging/disk/nosi-base.qcow2"
 
 # What derive produces and qualify boots
-[system-imaging.images.xnvme-images-guest-x86_64]
+[system-imaging.images.xnvme-devenv-guest-x86_64]
 system_label = "x86_64"
-disk.path = "{{ local.env.HOME }}/system_imaging/disk/xnvme-images-guest.qcow2"
+disk.path = "{{ local.env.HOME }}/system_imaging/disk/xnvme-devenv-guest.qcow2"
 
 [derive]
-debs = "/tmp/xnvme-images/guest-debs"
+debs = "/tmp/xnvme-devenv/guest-debs"
 kernel = "{{ local.env.XI_KERNEL }}"
-gz_path = "{{ local.env.HOME }}/system_imaging/disk/xnvme-images-guest-x86_64.img.gz"
+gz_path = "{{ local.env.HOME }}/system_imaging/disk/xnvme-devenv-guest-x86_64.img.gz"
 
 [rocm_ernic]
 bin = "/opt/rocm-ernic/bin/rocm-ernic"

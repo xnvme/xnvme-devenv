@@ -1,6 +1,6 @@
 ---
 doc: |
-  Qualify an xnvme-images guest against the host's servers
+  Qualify an xnvme-devenv guest against the host's servers
 
   Starts rocjitsu and rocm-ernic, boots the derived guest with the NIC and a
   free port beside it on one PCIe switch, and hot-plugs the GPU, which udev
@@ -20,7 +20,7 @@ steps:
   uses: qemu.guest_initialize
   with:
     guest_name: qualify
-    system_image_name: xnvme-images-guest-x86_64
+    system_image_name: xnvme-devenv-guest-x86_64
 
 - name: guest_start
   uses: rocjitsu_guest_start

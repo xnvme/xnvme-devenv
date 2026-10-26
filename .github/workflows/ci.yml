@@ -34,12 +34,12 @@ jobs:
     - uses: actions/checkout@v6
 
     - name: Build the host container
-      run: make host HOST_IMAGE=xnvme-images-host:local
+      run: make host HOST_IMAGE=xnvme-devenv-host:local
 
     - name: Derive the guest, then qualify it against the host's servers
       run: |
         sudo mkdir -p /mnt/xi && sudo chown "$(id -u):$(id -g)" /mnt/xi
-        make ci HOST_IMAGE=xnvme-images-host:local WORKDIR=/mnt/xi
+        make ci HOST_IMAGE=xnvme-devenv-host:local WORKDIR=/mnt/xi
 
     - name: Collect the guest serial consoles and the server logs
       if: always()
@@ -64,11 +64,11 @@ jobs:
       run: |
         echo "$GH_TOKEN" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
         echo "$GH_TOKEN" | oras login ghcr.io -u "${{ github.actor }}" --password-stdin
-        docker tag xnvme-images-host:local "$HOST_IMAGE:$TAG"
+        docker tag xnvme-devenv-host:local "$HOST_IMAGE:$TAG"
         docker push "$HOST_IMAGE:$TAG"
         # Written by the container, as root
         sudo cp lock.toml /mnt/xi/home/system_imaging/disk/
         cd /mnt/xi/home/system_imaging/disk
-        sha256sum xnvme-images-guest-x86_64.img.gz | sudo tee xnvme-images-guest-x86_64.img.gz.sha256
-        oras push "$GUEST_IMAGE:$TAG" xnvme-images-guest-x86_64.img.gz \
-          xnvme-images-guest-x86_64.img.gz.sha256 lock.toml
+        sha256sum xnvme-devenv-guest-x86_64.img.gz | sudo tee xnvme-devenv-guest-x86_64.img.gz.sha256
+        oras push "$GUEST_IMAGE:$TAG" xnvme-devenv-guest-x86_64.img.gz \
+          xnvme-devenv-guest-x86_64.img.gz.sha256 lock.toml

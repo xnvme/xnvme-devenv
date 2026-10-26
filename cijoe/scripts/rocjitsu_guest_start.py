@@ -188,7 +188,7 @@ def main(args, cijoe):
         "-drive",
         f"file={nvme_img},if=none,id=nvm0,format=raw,cache=none",
         "-device",
-        f"nvme,serial=xnvme-images,drive=nvm0,bus={NVME_PORT}",
+        f"nvme,serial=xnvme-devenv,drive=nvm0,bus={NVME_PORT}",
         "-qmp",
         f"unix:{guest.guest_path / 'qmp.sock'},server,nowait",
     ]

@@ -4,7 +4,7 @@
 lock = python3 -c 'import tomllib,sys; print(tomllib.load(open("lock.toml","rb"))["nosi"][sys.argv[1]])'
 
 DOCKER ?= docker
-HOST_IMAGE ?= xnvme-images-host:local
+HOST_IMAGE ?= xnvme-devenv-host:local
 CIJOE_OUTPUT ?= cijoe-output
 # Images, guests and server sockets: some 45G, on a disk that has it
 WORKDIR ?= $(CURDIR)/.work
@@ -32,7 +32,7 @@ ci:
 
 # The ends of the guests' serial consoles and the servers' logs, after a ci run
 logs:
-	@for f in $(WORKDIR)/home/guests/xnvme-images-*/serial.output \
+	@for f in $(WORKDIR)/home/guests/xnvme-devenv-*/serial.output \
 		$(WORKDIR)/home/run/vfio-user-*.log; do \
 		echo "::group::$$f (tail)"; \
 		$(SUDO) tail -c 20000 "$$f" 2>/dev/null || echo "missing"; \
@@ -40,8 +40,8 @@ logs:
 	done
 
 guest-debs:
-	rm -rf /tmp/xnvme-images/guest-debs
-	python3 tools/fetch-debs.py lock.toml guest /tmp/xnvme-images/guest-debs
+	rm -rf /tmp/xnvme-devenv/guest-debs
+	python3 tools/fetch-debs.py lock.toml guest /tmp/xnvme-devenv/guest-debs
 
 derive: guest-debs
 	cd cijoe && cijoe workflows/derive.yaml --monitor --config configs/images.toml \

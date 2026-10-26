@@ -1,6 +1,6 @@
 ---
 doc: |
-  Derive the xnvme-images guest from nosi
+  Derive the xnvme-devenv guest from nosi
 
   Boots the nosi base the lock pins, installs the guest debs, whose DKMS
   packages build their modules for its kernel here, and the guest checks,

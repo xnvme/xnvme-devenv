@@ -1,5 +1,5 @@
 #!/bin/sh
-# Qualify an xnvme-images guest from inside it: its rocjitsu GPU and its kernel.
+# Qualify an xnvme-devenv guest from inside it: its rocjitsu GPU and its kernel.
 #
 #   rocjitsu-guest-check gemm          FP32 GEMM on the GPU, checked on the CPU
 #   rocjitsu-guest-check p2p [ibdev]   RDMA into and out of VRAM on a NIC
