@@ -50,6 +50,7 @@ from, emulated or passed through. `cluster-node-emulated` has an emulated GPU,
 an emulated RDMA NIC and an NVMe drive behind one PCIe switch, and a release
 is qualified on it. `storage-node-emulated` has the NVMe controllers xNVMe's
 QEMU matrix tests, one per command set and format, each at a fixed BDF.
+`compute-node-emulated` has the GPU and one NVMe controller behind a switch.
 `make qualify-cluster RIG=...` takes rig names or paths to rig files. Each is
 one more config, and later ones win, so a file of your own can change one
 detail of a rig without copying it.
