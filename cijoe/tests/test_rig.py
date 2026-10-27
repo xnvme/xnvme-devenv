@@ -426,3 +426,12 @@ def test_compute_node_has_its_nvme_on_the_switchs_first_port():
     ]
     assert topo.device("nvme0")["port"] == "p2p_dn0"
     assert not topo.device("gpu0").get("boot", True)
+
+
+def test_gpu_rigs_have_the_same_nvme():
+    def nvme0(name):
+        path = Path(__file__).parents[2] / "rigs" / f"{name}.toml"
+        dev = Topology(tomllib.loads(path.read_text())["rig"]).device("nvme0")
+        return dev["device"], dev["children"], dev["image"]["size"]
+
+    assert nvme0("cluster-node-emulated") == nvme0("compute-node-emulated")

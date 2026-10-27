@@ -31,11 +31,12 @@ port = "p2p_dn0"
 socket = "{{ local.env.HOME }}/run/vfio-user-rocm-ernic.sock"
 server = "/opt/rocm-ernic/bin/rocm-ernic --socket {socket} --backend loopback --log-level info --peer-memory \"$(/opt/rocjitsu/bin/rocjitsu-vram {pid:gpu0}):2G\""
 
-# A scratch drive for the kernel checks; its content does not matter
+# The controller for P2P I/O, as compute-node-emulated's
 [[rig.devices]]
 name = "nvme0"
 provider = "qemu"
 port = "p2p_dn2"
-device = "nvme,serial=xnvme-devenv,drive=nvme0_drv"
-drives = ["file={{ local.env.HOME }}/guests/rig-nvme0.img,if=none,id=nvme0_drv,format=raw,cache=none"]
-image = {path = "{{ local.env.HOME }}/guests/rig-nvme0.img", size = "1G"}
+device = "nvme,serial=beef00ff,mdts=7,ioeventfd=on"
+drives = ["id=nvme0n1,file={{ local.env.HOME }}/guests/cluster-node-emulated/nvme0n1.img,format=raw,if=none,discard=on,detect-zeroes=unmap,cache=none,aio=io_uring"]
+children = ["nvme-ns,drive=nvme0n1,nsid=1,logical_block_size=4096,physical_block_size=4096"]
+image = {path = "{{ local.env.HOME }}/guests/cluster-node-emulated/nvme0n1.img", size = "8G"}
