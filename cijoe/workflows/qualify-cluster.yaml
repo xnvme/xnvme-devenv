@@ -45,6 +45,12 @@ steps:
     for _ in $(seq 36); do test -e /dev/kfd && ls /dev/dri | grep -q renderD && break; sleep 5; done
     test -e /dev/kfd && ls /dev/dri | grep -q renderD || { dmesg | grep -i amdgpu | tail -40; false; }
 
+- name: rig_devices
+  uses: rig_devices
+  with:
+    guest_name: qualify
+    expect_controllers: 1
+
 # Our kernel, not the stock one, and its io_uring dma-buf support against the
 # emulated NVMe drive
 - name: test_kernel

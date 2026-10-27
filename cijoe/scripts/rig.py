@@ -26,9 +26,13 @@ start a qemu guest with it, plug and unplug its devices, and kill it:
 Devices are tables named for the device, in the order the file lists them. A
 config layered on the rig, as cijoe merges tables, changes a field of a device
 by naming it, '[rig.devices.nic0]' with only that field, and a device it adds
-comes after the rig's own, so theirs keep their ports and addresses. Fields
-the scripts do not know are left for the rig's users, such as a NIC's
-'transport', how the guest reaches the target at its far end.
+comes after the rig's own, so theirs keep their ports and addresses.
+
+A device's 'labels' say what it offers the tests of the rig's users, in xNVMe's
+words, 'nvm', 'zns', 'fdp' and so on; rig_devices reports them with where the
+device is in the guest. Other fields the scripts do not know are left for the
+rig's users, such as a NIC's 'transport', how the guest reaches the target at
+its far end.
 
 Each switch sits on a root port of its own, and its downstream ports are named
 '<switch>_dn<i>'. A device without a 'port' gets a root port of its own, named
@@ -484,3 +488,109 @@ def unplug(guest_path: Path, topo: Topology, name: str, timeout=60):
             return errno.ETIMEDOUT
 
     return 0
+
+
+# Each NVMe namespace's block and char device in the guest, with its sysfs path
+# and nsid, then each subsystem's controllers, for guest_nvme(); one line, as
+# cijoe runs it over the guest's transport
+GUEST_NVME = (
+    "for p in /sys/class/block/nvme* /sys/class/nvme-generic/ng*; do"
+    ' [ -e "$p" ] || continue; n=$(basename $p);'
+    " case $n in *c*n*|*p[0-9]*) continue;; esac;"
+    ' echo "ns $n $(readlink -f $p) $(nvme get-ns-id /dev/$n 2>/dev/null | sed "s/.*://")";'
+    " done;"
+    " for s in /sys/class/nvme-subsystem/*; do for c in $s/nvme[0-9]*; do"
+    ' [ -e "$c" ] && echo "subsys $(basename $s) $(readlink -f $c)";'
+    " done; done; true"
+)
+
+CTRL_PATH = re.compile(
+    r"/([0-9a-f]{4}:[0-9a-f]{2}:[0-9a-f]{2}\.[0-7])/nvme/(nvme\d+)(/|$)"
+)
+
+
+def guest_nvme(listing: str):
+    """The guest's NVMe controllers by BDF, from the output of GUEST_NVME: each
+    with its name and namespaces, '{nsid, bdev, cdev}', a namespace of a shared
+    subsystem under each of the subsystem's controllers"""
+
+    ctrls = {}
+    by_subsys = {}
+    namespaces = []
+    for line in listing.splitlines():
+        fields = line.split()
+        if len(fields) >= 3 and fields[0] == "subsys":
+            match = CTRL_PATH.search(fields[2])
+            if match:
+                by_subsys.setdefault(fields[1], []).append(match.groups()[:2])
+        elif len(fields) >= 3 and fields[0] == "ns":
+            nsid = int(fields[3]) if len(fields) > 3 and fields[3].isdigit() else None
+            namespaces.append((fields[1], fields[2], nsid))
+
+    def entry(bdf, ctrl, nsid):
+        ctrls.setdefault(bdf, {"controller": ctrl, "namespaces": {}})
+        return ctrls[bdf]["namespaces"].setdefault(
+            nsid, {"nsid": nsid} if nsid is not None else {}
+        )
+
+    for name, path, nsid in namespaces:
+        kind = "cdev" if name.startswith("ng") else "bdev"
+        match = CTRL_PATH.search(path)
+        if match:
+            entry(*match.groups()[:2], nsid)[kind] = f"/dev/{name}"
+            continue
+        subsys = re.search(r"/nvme-subsystem/(nvme-subsys\d+)/", path)
+        for bdf, ctrl in by_subsys.get(subsys.group(1), []) if subsys else []:
+            entry(bdf, ctrl, nsid)[kind] = f"/dev/{name}"
+
+    return {
+        bdf: {
+            **ctrl,
+            "namespaces": sorted(
+                ctrl["namespaces"].values(), key=lambda n: n.get("nsid", 0)
+            ),
+        }
+        for bdf, ctrl in ctrls.items()
+    }
+
+
+def pci_addresses(guest_path: Path):
+    """The BDF of each device of the running guest, by its id, as QEMU reports it
+    once the guest has numbered the buses"""
+
+    with QMP(qmp_path(guest_path)) as qmp:
+        reply = qmp.execute("query-pci")
+
+    addresses = {}
+
+    def walk(devices):
+        for dev in devices:
+            if dev.get("qdev_id"):
+                addresses[dev["qdev_id"]] = (
+                    f"0000:{dev['bus']:02x}:{dev['slot']:02x}.{dev['function']}"
+                )
+            walk(dev.get("pci_bridge", {}).get("devices", []))
+
+    for bus in reply.get("return", []):
+        walk(bus.get("devices", []))
+
+    return addresses
+
+
+def guest_devices(topo: Topology, addresses: dict, nvme: dict):
+    """The rig's devices present in the guest, by name: each with its 'labels',
+    'bdf', 'transport' when it has one, and an NVMe controller's 'controller' and
+    'namespaces'"""
+
+    report = {}
+    for dev in topo.devices:
+        bdf = addresses.get(dev["name"])
+        if not bdf:
+            continue
+        entry = {"labels": dev.get("labels", []), "bdf": bdf}
+        if "transport" in dev:
+            entry["transport"] = dev["transport"]
+        entry.update(nvme.get(bdf, {}))
+        report[dev["name"]] = entry
+
+    return report
