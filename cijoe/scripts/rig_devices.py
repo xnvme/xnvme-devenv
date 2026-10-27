@@ -7,7 +7,8 @@ Writes '[guest.devices.<device>]' for each of the rig's devices in the running
 guest, to 'guest-devices.toml' in the guest's path and in the step's output: its
 'labels', its 'bdf' as QEMU reports it, its 'transport' when it has one, and,
 for an NVMe controller, the 'controller' and 'namespaces', '{nsid, bdev, cdev}',
-the guest named, a Linux or a FreeBSD guest. A consumer passes the file as one more config and builds its
+the guest named, read the way the guest's 'os.name' says: Linux, FreeBSD or
+Windows, whose disks have no controller and a 'bdev' alone. A consumer passes the file as one more config and builds its
 device list from it. Run it after the guest is up and root can log in, and
 again after a plug or unplug.
 
@@ -52,13 +53,14 @@ def main(args, cijoe):
         log.error(f"guest {guest_name} is not running")
         return errno.ENODEV
 
-    err, state = cijoe.run("uname -s")
-    freebsd = not err and "FreeBSD" in state.output()
-    err, state = cijoe.run(rig.GUEST_NVME_FREEBSD if freebsd else rig.GUEST_NVME)
+    listing, reader = {
+        "freebsd": (rig.GUEST_NVME_FREEBSD, rig.guest_nvme_freebsd),
+        "windows": (rig.GUEST_NVME_WINDOWS, rig.guest_nvme_windows),
+    }.get(cijoe.getconf("os.name", "linux"), (rig.GUEST_NVME, rig.guest_nvme))
+    err, state = cijoe.run(listing)
     if err:
         log.error(f"listing the guest's NVMe devices failed: err({err})")
         return err
-    reader = rig.guest_nvme_freebsd if freebsd else rig.guest_nvme
 
     report = rig.guest_devices(
         rig.Topology.from_config(cijoe),
@@ -73,7 +75,7 @@ def main(args, cijoe):
         / "guest-devices.toml",
     )
 
-    controllers = [name for name, dev in report.items() if "controller" in dev]
+    controllers = [name for name, dev in report.items() if "namespaces" in dev]
     if args.expect_controllers >= 0 and len(controllers) != args.expect_controllers:
         log.error(
             f"expected {args.expect_controllers} NVMe controllers; found {controllers}"

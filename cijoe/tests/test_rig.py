@@ -571,6 +571,9 @@ def fake_sysfs(root: Path):
     (root / "devices" / "0000:02:00.0" / "nvme" / "nvme3" / "nvme3n1").mkdir(
         parents=True
     )
+    (root / "devices" / "0000:02:00.0" / "nvme" / "nvme3" / "serial").write_text(
+        "S7HENU0Y551082W     \n"
+    )
 
     lone = root / "devices" / "0000:03:00.0"
     lone.mkdir(parents=True)
@@ -679,6 +682,7 @@ def test_passthru_problems(tmp_path, host, mounted, holder, expect):
     mounts.write_text(mounted + "\n")
 
     dev = {"name": "nvme0", "provider": "vfio-pci", "host": host}
+    dev["serial"] = "S7HENU0Y551082W"
     problems = rig.passthru_problems(dev, sysfs, mounts)
     assert len(problems) == len(expect)
     for problem, part in zip(problems, expect):
@@ -767,3 +771,99 @@ def test_guest_nvme_freebsd_by_bdf():
             "namespaces": [{"nsid": 1, "cdev": "/dev/nvme1ns1"}],
         },
     }
+
+
+# Get-Disk's locations, as Windows reports a disk behind a PCI function
+WINDOWS_NVME = """\
+disk 0 PCI Slot 0 : Bus 0 : Device 31 : Function 2 : Adapter 0 : Port 0 : Target 0 : LUN 0
+disk 1 PCI Slot 2 : Bus 1 : Device 0 : Function 0 : Adapter 0 : Port 0 : Target 0 : LUN 0
+disk 2 Integrated : Adapter 0 : Port 0 : Target 0 : LUN 0
+"""
+
+
+def test_guest_nvme_windows_by_bdf():
+    listing = WINDOWS_NVME + "serial 1 S7HENU0Y551082W\nserial 2 VFUKVSSD0000\n"
+    assert rig.guest_nvme_windows(listing) == {
+        "0000:00:1f.2": {"namespaces": [{"bdev": "//./PhysicalDrive0"}]},
+        "0000:01:00.0": {
+            "namespaces": [{"bdev": "//./PhysicalDrive1"}],
+            "serial": "S7HENU0Y551082W",
+        },
+        "disk2": {
+            "namespaces": [{"bdev": "//./PhysicalDrive2"}],
+            "serial": "VFUKVSSD0000",
+        },
+    }
+
+
+def test_guest_nvme_listings_parse_as_shell():
+    for listing in (rig.GUEST_NVME, rig.GUEST_NVME_FREEBSD, rig.GUEST_NVME_WINDOWS):
+        subprocess.run(["bash", "-n", "-c", listing], check=True)
+
+
+def test_passthru_needs_the_drives_serial(tmp_path):
+    sysfs = fake_sysfs(tmp_path / "sys")
+    (sysfs / "devices" / "0000:02:00.0" / "class").write_text("0x010802\n")
+    dev = {"name": "nvme0", "provider": "vfio-pci", "host": "0000:02:00.0"}
+    mounts = tmp_path / "mounts"
+    mounts.write_text("\n")
+
+    assert ["needs its 'serial'" in p for p in rig.passthru_problems(dev, sysfs, mounts)] == [True]
+    dev["serial"] = "OTHERDRIVE"
+    problems = rig.passthru_problems(dev, sysfs, mounts)
+    assert len(problems) == 1 and "is serial S7HENU0Y551082W, not OTHERDRIVE" in problems[0]
+
+
+def test_qemu_device_gets_its_serial():
+    topo = Topology(
+        {"devices": [{"name": "nvme0", "provider": "qemu", "device": "nvme,mdts=7", "serial": "beef0000"}]}
+    )
+    assert topo.qemu_device_specs(topo.devices[0])[0].startswith("nvme,mdts=7,serial=beef0000,id=nvme0")
+
+
+def test_guest_nvme_reads_controller_serials():
+    listing = GUEST_LISTING + f"ctrl {PCI}/0000:01:00.0/nvme/nvme1 beef0000\n"
+    ctrls = rig.guest_nvme(listing)
+    assert ctrls["0000:01:00.0"]["serial"] == "beef0000"
+    assert "serial" not in ctrls["0000:02:00.0"]
+
+
+def test_guest_nvme_freebsd_reads_controller_serials():
+    listing = FREEBSD_NVME + "ctrl nvme0 S7HENU0Y551082W\nctrl nvme1 beef0001\n"
+    ctrls = rig.guest_nvme_freebsd(listing)
+    assert ctrls["0000:01:00.0"]["serial"] == "S7HENU0Y551082W"
+    assert ctrls["0000:0a:00.0"]["serial"] == "beef0001"
+
+
+def test_guest_devices_finds_controllers_by_serial():
+    # The guest numbered them out of bus order, and the two of a subsystem share one
+    nvme = {
+        "0000:01:00.0": {"controller": "nvme9", "serial": "beef0000", "namespaces": []},
+        "0000:02:00.0": {"controller": "nvme0", "serial": "beef0001", "namespaces": []},
+        "0000:03:00.0": {"controller": "nvme4", "serial": "beef0005", "namespaces": []},
+        "0000:04:00.0": {"controller": "nvme5", "serial": "beef0005", "namespaces": []},
+        "disk1": {"serial": "S7HENU0Y551082W", "namespaces": [{"bdev": "//./PhysicalDrive1"}]},
+    }
+    topo = Topology(
+        {
+            "devices": [
+                {"name": "a", "provider": "qemu", "serial": "beef0000"},
+                {"name": "b", "provider": "qemu", "serial": "beef0001"},
+                {"name": "c", "provider": "qemu", "serial": "beef0005"},
+                {"name": "d", "provider": "qemu", "serial": "beef0005"},
+                {"name": "real", "provider": "vfio-pci", "serial": "S7HENU0Y551082W"},
+                {"name": "gone", "provider": "qemu", "serial": "beef0099"},
+            ]
+        }
+    )
+    # QEMU's addresses, swapped for a and b to show the serial wins
+    addresses = {
+        "a": "0000:02:00.0", "b": "0000:01:00.0", "c": "0000:03:00.0",
+        "d": "0000:04:00.0", "real": "0000:05:00.0", "gone": "0000:06:00.0",
+    }
+    report = rig.guest_devices(topo, addresses, nvme)
+    assert report["a"]["controller"] == "nvme9"
+    assert report["b"]["controller"] == "nvme0"
+    assert report["c"]["controller"] == "nvme4" and report["d"]["controller"] == "nvme5"
+    assert report["real"]["namespaces"] == [{"bdev": "//./PhysicalDrive1"}]
+    assert "namespaces" not in report["gone"]

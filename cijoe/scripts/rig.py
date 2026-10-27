@@ -11,7 +11,8 @@ start a qemu guest with it, plug and unplug its devices, and kill it:
     [rig.devices.nvme0]
     provider = "qemu"
     port = "p2p_dn0"
-    device = "nvme,serial=deadbeef"
+    device = "nvme,mdts=7"
+    serial = "deadbeef"
     drives = ["file=/path/nvme0.img,if=none,id=nvm0,format=raw"]
     children = ["nvme-ns,drive=nvm0,nsid=1"]
     image = {path = "/path/nvme0.img", size = "1G"}
@@ -27,6 +28,14 @@ Devices are tables named for the device, in the order the file lists them. A
 config layered on the rig, as cijoe merges tables, changes a field of a device
 by naming it, '[rig.devices.nic0]' with only that field, and a device it adds
 comes after the rig's own, so theirs keep their ports and addresses.
+
+An NVMe device's 'serial' is how the guest's controller is told from the
+others: rig_devices finds the device by it, and by its address only among
+controllers that share it, as a subsystem's do, so the report does not depend
+on how the guest numbers its controllers. A 'qemu' device gets it as its
+'serial' property; a 'vfio-user' device's is what its server reports; a
+'vfio-pci' drive's is the drive's own, which the machine's config gives with
+'host', and which is checked against the drive before it is passed through.
 
 A device's 'labels' say what it offers the tests of the rig's users, in xNVMe's
 words, 'nvm', 'zns', 'fdp' and so on; rig_devices reports them with where the
@@ -61,9 +70,10 @@ A device of provider 'vfio-pci' is the host's own, passed through: 'host' is
 its BDF on the host, and 'props' as for 'vfio-user'. Before the guest starts,
 it and the other endpoints in its IOMMU group are bound to vfio-pci with
 devbind, which takes them from the host, so a device whose namespaces the host
-has mounted is refused. The IOMMU must be on, with groups and not in one of
-the 'off' modes of 'iommu show', and memlock unlimited. A rig leaves 'host' to the machine's
-own config, '[rig.devices.<name>] host = "0000:02:00.0"'.
+has mounted, or whose serial is not the one the config gives, is refused. The
+IOMMU must be on, with groups and not in one of the 'off' modes of 'iommu
+show', and memlock unlimited. A rig leaves 'host' and 'serial' to the machine's
+own config, '[rig.devices.<name>] host = "0000:02:00.0"' and its 'serial'.
 
 A device with 'boot = false' is not present at boot: its port and drives are,
 and 'plug()' adds it over QMP, as 'unplug()' removes it. Its children are
@@ -193,7 +203,10 @@ class Topology:
         """The '-device' arguments, as strings, of a 'qemu' device and its children"""
 
         bus = self.bus(dev)
-        specs = [f"{dev['device']},id={dev['name']}" + (f",bus={bus}" if bus else "")]
+        serial = f",serial={dev['serial']}" if "serial" in dev else ""
+        specs = [
+            f"{dev['device']}{serial},id={dev['name']}" + (f",bus={bus}" if bus else "")
+        ]
         for i, child in enumerate(dev.get("children", [])):
             specs.append(f"{child},id={dev['name']}_c{i},bus={dev['name']}")
 
@@ -516,8 +529,8 @@ def unplug(guest_path: Path, topo: Topology, name: str, timeout=60):
 
 
 # Each NVMe namespace's block and char device in the guest, with its sysfs path
-# and nsid, then each subsystem's controllers, for guest_nvme(); one line, as
-# cijoe runs it over the guest's transport
+# and nsid, then each subsystem's controllers, then each controller's serial,
+# for guest_nvme(); one line, as cijoe runs it over the guest's transport
 GUEST_NVME = (
     "for p in /sys/class/block/nvme* /sys/class/nvme-generic/ng*; do"
     ' [ -e "$p" ] || continue; n=$(basename $p);'
@@ -526,7 +539,10 @@ GUEST_NVME = (
     " done;"
     " for s in /sys/class/nvme-subsystem/*; do for c in $s/nvme[0-9]*; do"
     ' [ -e "$c" ] && echo "subsys $(basename $s) $(readlink -f $c)";'
-    " done; done; true"
+    " done; done;"
+    " for c in /sys/class/nvme/nvme*; do"
+    ' [ -e "$c" ] && echo "ctrl $(readlink -f $c) $(cat $c/serial)";'
+    " done; true"
 )
 
 CTRL_PATH = re.compile(
@@ -536,15 +552,20 @@ CTRL_PATH = re.compile(
 
 def guest_nvme(listing: str):
     """The guest's NVMe controllers by BDF, from the output of GUEST_NVME: each
-    with its name and namespaces, '{nsid, bdev, cdev}', a namespace of a shared
-    subsystem under each of the subsystem's controllers"""
+    with its name, serial and namespaces, '{nsid, bdev, cdev}', a namespace of a
+    shared subsystem under each of the subsystem's controllers"""
 
     ctrls = {}
     by_subsys = {}
     namespaces = []
+    serials = {}
     for line in listing.splitlines():
         fields = line.split()
-        if len(fields) >= 3 and fields[0] == "subsys":
+        if len(fields) >= 3 and fields[0] == "ctrl":
+            match = CTRL_PATH.search(fields[1])
+            if match:
+                serials[match.groups()[:2]] = fields[2]
+        elif len(fields) >= 3 and fields[0] == "subsys":
             match = CTRL_PATH.search(fields[2])
             if match:
                 by_subsys.setdefault(fields[1], []).append(match.groups()[:2])
@@ -568,6 +589,9 @@ def guest_nvme(listing: str):
         for bdf, ctrl in by_subsys.get(subsys.group(1), []) if subsys else []:
             entry(bdf, ctrl, nsid)[kind] = f"/dev/{name}"
 
+    for (bdf, ctrl), serial in serials.items():
+        ctrls.setdefault(bdf, {"controller": ctrl, "namespaces": {}})["serial"] = serial
+
     return {
         bdf: {
             **ctrl,
@@ -580,8 +604,14 @@ def guest_nvme(listing: str):
 
 
 # FreeBSD's: controllers with their BDFs, the CAM bus each controller's
-# namespaces are disks on, and the namespaces; run by csh as well as sh
-GUEST_NVME_FREEBSD = "pciconf -l; camcontrol devlist -v; nvmecontrol devlist"
+# namespaces are disks on, the namespaces, and each controller's serial; in sh,
+# as root's shell may be csh
+GUEST_NVME_FREEBSD = (
+    "sh -c 'pciconf -l; camcontrol devlist -v; nvmecontrol devlist;"
+    " for c in $(pciconf -l | sed -n \"s/^\\(nvme[0-9]*\\)@.*/\\1/p\"); do"
+    " echo \"ctrl $c $(nvmecontrol identify $c | sed -n \"s/^Serial Number: *//p\")\";"
+    " done'"
+)
 
 
 def guest_nvme_freebsd(listing: str):
@@ -589,14 +619,17 @@ def guest_nvme_freebsd(listing: str):
     output of GUEST_NVME_FREEBSD: a namespace's 'cdev' is its nvme<c>ns<n>, its
     'bdev' the nda disk CAM made of it, absent where the guest uses nvd"""
 
-    bdfs, disks, namespaces = {}, {}, []
+    bdfs, disks, namespaces, serials = {}, {}, [], {}
     scbus = None
     for line in listing.splitlines():
         pci = re.match(r"(nvme\d+)@pci(\d+):(\d+):(\d+):(\d+):", line)
         bus = re.match(r"(scbus\d+) on (\w+) bus", line)
         disk = re.search(r" lun (\d+) \(.*\b(nda\d+)\b", line)
         ns = re.match(r"\s+((nvme\d+)ns(\d+))\b", line)
-        if pci:
+        serial = re.match(r"ctrl (nvme\d+) (\S+)", line)
+        if serial:
+            serials[serial.group(1)] = serial.group(2)
+        elif pci:
             ctrl, dom, b, d, f = pci.groups()
             bdfs[ctrl] = f"{int(dom):04x}:{int(b):02x}:{int(d):02x}.{int(f)}"
         elif bus:
@@ -617,6 +650,45 @@ def guest_nvme_freebsd(listing: str):
         entry["namespaces"].append(found)
     for ctrl, bdf in bdfs.items():
         ctrls.setdefault(bdf, {"controller": ctrl, "namespaces": []})
+        if ctrl in serials:
+            ctrls[bdf]["serial"] = serials[ctrl]
+
+    return ctrls
+
+
+# Windows': each disk's number and location, which names its PCI function, and
+# each physical disk's number and serial
+GUEST_NVME_WINDOWS = (
+    "powershell -NoProfile -Command "
+    "'Get-Disk | ForEach-Object { \"disk {0} {1}\" -f $_.Number, $_.Location };"
+    " Get-PhysicalDisk | ForEach-Object { \"serial {0} {1}\" -f $_.DeviceId, $_.SerialNumber }'"
+)
+
+
+def guest_nvme_windows(listing: str):
+    """The guest's NVMe disks by BDF, from the output of GUEST_NVME_WINDOWS: a
+    disk's location reads 'PCI Slot s : Bus b : Device d : Function f : ...',
+    and its 'bdev' is the //./PhysicalDrive<n> xNVMe opens. Windows names no
+    controller, so an entry has its 'serial' and 'namespaces' alone, and is
+    keyed 'disk<n>' where its location names no PCI function."""
+
+    where, serials = {}, {}
+    for line in listing.splitlines():
+        disk = re.match(r"disk (\d+) (.*)", line)
+        serial = re.match(r"serial (\d+) (\S+)", line)
+        if serial:
+            serials[int(serial.group(1))] = serial.group(2)
+        elif disk:
+            pci = re.search(r"Bus (\d+) : Device (\d+) : Function (\d+)", disk.group(2))
+            b, d, f = (int(n) for n in pci.groups()) if pci else (None, None, None)
+            where[int(disk.group(1))] = f"0000:{b:02x}:{d:02x}.{f}" if pci else None
+
+    ctrls = {}
+    for number, bdf in where.items():
+        entry = ctrls.setdefault(bdf or f"disk{number}", {"namespaces": []})
+        entry["namespaces"].append({"bdev": f"//./PhysicalDrive{number}"})
+        if number in serials:
+            entry["serial"] = serials[number]
 
     return ctrls
 
@@ -646,8 +718,10 @@ def pci_addresses(guest_path: Path):
 
 def guest_devices(topo: Topology, addresses: dict, nvme: dict):
     """The rig's devices present in the guest, by name: each with its 'labels',
-    'bdf', 'transport' when it has one, and an NVMe controller's 'controller' and
-    'namespaces'"""
+    'bdf', 'transport' when it has one, and an NVMe controller's 'controller',
+    'serial' and 'namespaces'. A device with a 'serial' is the controller that
+    reports it, the one at its address where several do; one no controller
+    reports is reported without them."""
 
     report = {}
     for dev in topo.devices:
@@ -657,7 +731,11 @@ def guest_devices(topo: Topology, addresses: dict, nvme: dict):
         entry = {"labels": dev.get("labels", []), "bdf": bdf}
         if "transport" in dev:
             entry["transport"] = dev["transport"]
-        entry.update(nvme.get(bdf, {}))
+        found = nvme.get(bdf, {})
+        if "serial" in dev:
+            same = {b: c for b, c in nvme.items() if c.get("serial") == dev["serial"]}
+            found = same.get(bdf) or (next(iter(same.values())) if len(same) == 1 else {})
+        entry.update(found)
         report[dev["name"]] = entry
 
     return report
@@ -679,6 +757,15 @@ def passthru_problems(dev: dict, sysfs=Path("/sys"), mounts="/proc/mounts"):
         return [f"{dev['name']}: {host} is in no IOMMU group; is the IOMMU on?"]
 
     problems = []
+    cls = (pci / "class").read_text().strip() if (pci / "class").exists() else ""
+    if cls.startswith("0x0108"):
+        shown = [c.read_text().strip() for c in pci.glob("nvme/nvme*/serial")]
+        if not dev.get("serial"):
+            problems.append(f"{dev['name']}: an NVMe drive needs its 'serial'")
+        elif shown and dev["serial"] not in shown:
+            problems.append(
+                f"{dev['name']}: {host} is serial {shown[0]}, not {dev['serial']}"
+            )
     try:
         mounted = {
             line.split()[0]
