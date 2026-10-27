@@ -13,5 +13,11 @@ dependencies = [
 requires = ["setuptools>=61.0"]
 build-backend = "setuptools.build_meta"
 
+# The scripts, as the cijoe package 'xnvme_devenv', for consumers' workflows to
+# use as 'xnvme_devenv.<script>'; this directory's own workflows find them here
 [tool.setuptools]
-packages = []
+packages = ["cijoe.xnvme_devenv", "cijoe.xnvme_devenv.scripts"]
+
+[tool.setuptools.package-dir]
+"cijoe.xnvme_devenv" = "."
+"cijoe.xnvme_devenv.scripts" = "scripts"

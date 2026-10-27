@@ -43,7 +43,10 @@ QEMU emulates some devices, and the host's servers serve others over
 vfio-user. Each rig is a cijoe config under `rigs/`, shipped in the host
 container at `/opt/xnvme-devenv/rigs`. The `rig_*` scripts in `cijoe/scripts`
 start a guest with a rig, plug and unplug its devices, and kill it with its
-servers. `cijoe/scripts/rig.py` describes the format.
+servers. `cijoe/scripts/rig.py` describes the format. The scripts install as
+the cijoe package `xnvme_devenv`, so a consumer running in the host container
+adds them to its cijoe with `pipx inject <venv> /opt/xnvme-devenv/cijoe` and
+uses them as `xnvme_devenv.rig_guest_start` and so on.
 
 A rig is named for the machine it stands in for and where its devices come
 from, emulated or passed through. `cluster-node-emulated` has an emulated GPU,
