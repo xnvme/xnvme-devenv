@@ -26,6 +26,12 @@ steps:
 - name: root_unlock
   uses: root_unlock
 
+- name: rig_devices
+  uses: rig_devices
+  with:
+    guest_name: qualify
+    expect_controllers: 11
+
 # nvme<i> is at bus i + 1; nvme2 is vfu_kvssd's, with a serial of its own. A serial
 # is padded with spaces to 20 bytes, as the controller reports it. Each
 # line is run on its own, so a loop is one line.

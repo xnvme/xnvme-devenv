@@ -6,6 +6,7 @@
 
 [rig.devices.nic0]
 provider = "vfio-user"
+labels = ["nvm", "rdma", "nvmet", "novec"]
 socket = "{{ local.env.HOME }}/run/vfio-user-rocm-ernic.sock"
 server = "/opt/rocm-ernic/bin/rocm-ernic --socket {socket} --backend nvmeof:size=1G,bs=4096,nqn=nvmet-test,ip=192.168.200.1,port=4420 --log-level info"
 

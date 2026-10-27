@@ -26,6 +26,12 @@ steps:
 - name: root_unlock
   uses: root_unlock
 
+- name: rig_devices
+  uses: rig_devices
+  with:
+    guest_name: qualify
+    expect_controllers: 0
+
 - name: test_discover
   run: |
     ip addr replace {{ config.rig.devices.nic0.transport.guest_addr }} dev {{ config.rig.devices.nic0.transport.netdev }}

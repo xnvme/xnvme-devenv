@@ -46,7 +46,11 @@ start a guest with a rig, plug and unplug its devices, and kill it with its
 servers. `cijoe/scripts/rig.py` describes the format. The scripts install as
 the cijoe package `xnvme_devenv`, so a consumer running in the host container
 adds them to its cijoe with `pipx inject <venv> /opt/xnvme-devenv/cijoe` and
-uses them as `xnvme_devenv.rig_guest_start` and so on.
+uses them as `xnvme_devenv.rig_guest_start` and so on. Once the guest is up,
+`rig_devices` writes `guest-devices.toml` beside it, as `[guest.devices]`: each
+device present, with its labels, its BDF and, for an NVMe controller, the names
+the guest gave it and its namespaces. A consumer passes it as one more config
+and builds its device list from it, rather than keeping one of its own.
 
 A rig is named for the machine it stands in for and where its devices come
 from, emulated or passed through. `cluster-node-emulated` has an emulated GPU,

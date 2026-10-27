@@ -32,6 +32,7 @@ server = "/opt/rocm-ernic/bin/rocm-ernic --socket {socket} --backend loopback --
 # The controller for P2P I/O, as compute-node-emulated's
 [rig.devices.nvme0]
 provider = "qemu"
+labels = ["nvm", "scc", "write_zeroes", "log_health_ns", "idfy_cs"]
 port = "p2p_dn2"
 device = "nvme,serial=beef00ff,mdts=7,ioeventfd=on"
 drives = ["id=nvme0n1,file={{ local.env.HOME }}/guests/cluster-node-emulated/nvme0n1.img,format=raw,if=none,discard=on,detect-zeroes=unmap,cache=none,aio=io_uring"]

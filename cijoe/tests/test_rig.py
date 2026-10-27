@@ -7,6 +7,7 @@ need none either. Real rigs are booted by the qualify workflows.
 
 import json
 import socket
+import subprocess
 import sys
 import threading
 import tomllib
@@ -205,9 +206,10 @@ def test_server_that_exits(tmp_path):
 class FakeQMP(threading.Thread):
     """Answers QMP commands on 'path', recording them, as QEMU would"""
 
-    def __init__(self, path: Path):
+    def __init__(self, path: Path, replies=None):
         super().__init__(daemon=True)
         self.commands: list[dict] = []
+        self.replies = replies or {}
         self.listener = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
         self.listener.bind(str(path))
         self.listener.listen()
@@ -230,6 +232,7 @@ class FakeQMP(threading.Thread):
                         event = {"event": "DEVICE_DELETED", "data": {"device": device}}
                         stream.write(json.dumps(event) + "\n")
                     reply = "" if msg["execute"] == "human-monitor-command" else {}
+                    reply = self.replies.get(msg["execute"], reply)
                     stream.write(json.dumps({"return": reply}) + "\n")
                     stream.flush()
 
@@ -467,3 +470,69 @@ def test_a_layered_config_changes_one_field_and_appends_devices(tmp_path):
     assert [d["name"] for d in topo.devices] == ["gpu0", "nic0", "nvme0", "extra"]
     assert topo.device("nic0")["server"] == "other {socket}"
     assert topo.device("nic0")["port"] == "p2p_dn0", "the rest of nic0 is kept"
+
+
+PCI = "/sys/devices/pci0000:00/0000:00:03.0"
+GUEST_LISTING = f"""\
+ns nvme1n1 {PCI}/0000:01:00.0/nvme/nvme1/nvme1n1 1
+ns ng1n1 {PCI}/0000:01:00.0/nvme/nvme1/ng1n1 1
+ns ng0n1 /sys/devices/pci0000:00/0000:00:04.0/0000:02:00.0/nvme/nvme0/ng0n1 1
+ns nvme2n1 /sys/devices/virtual/nvme-subsystem/nvme-subsys2/nvme2n1 1
+ns ng2n1 /sys/devices/virtual/nvme-subsystem/nvme-subsys2/ng2n1
+subsys nvme-subsys1 {PCI}/0000:01:00.0/nvme/nvme1
+subsys nvme-subsys2 /sys/devices/pci0000:00/0000:00:05.0/0000:03:00.0/nvme/nvme2
+"""
+
+
+def test_guest_nvme_by_bdf():
+    ctrls = rig.guest_nvme(GUEST_LISTING)
+
+    assert ctrls["0000:01:00.0"] == {
+        "controller": "nvme1",
+        "namespaces": [{"nsid": 1, "bdev": "/dev/nvme1n1", "cdev": "/dev/ng1n1"}],
+    }
+    assert ctrls["0000:02:00.0"]["namespaces"] == [{"nsid": 1, "cdev": "/dev/ng0n1"}]
+    shared = ctrls["0000:03:00.0"]
+    assert shared["controller"] == "nvme2"
+    assert {"nsid": 1, "bdev": "/dev/nvme2n1"} in shared["namespaces"]
+    assert {"cdev": "/dev/ng2n1"} in shared["namespaces"], "no nsid is left out"
+
+
+def test_guest_devices_reports_where_they_are(tmp_path):
+    def pcidev(qdev_id, bus, devices=()):
+        dev = {"qdev_id": qdev_id, "bus": bus, "slot": 0, "function": 0}
+        if devices:
+            dev["pci_bridge"] = {"devices": list(devices)}
+        return dev
+
+    tree = [{"devices": [pcidev("nvme0_rp", 0, [pcidev("nvme0", 1)]), pcidev("", 0)]}]
+    FakeQMP(tmp_path / "qmp.sock", {"query-pci": tree})
+    addresses = rig.pci_addresses(tmp_path)
+    assert addresses == {"nvme0_rp": "0000:00:00.0", "nvme0": "0000:01:00.0"}
+
+    topo = Topology(
+        {
+            "devices": [
+                {"name": "nvme0", "provider": "qemu", "labels": ["nvm"]},
+                {"name": "gone", "provider": "qemu", "boot": False},
+            ]
+        }
+    )
+    report = rig.guest_devices(topo, addresses, rig.guest_nvme(GUEST_LISTING))
+    assert list(report) == ["nvme0"], "a device not in the guest is not reported"
+    assert report["nvme0"]["labels"] == ["nvm"]
+    assert report["nvme0"]["controller"] == "nvme1"
+
+
+def test_guest_listing_command_is_valid_shell():
+    subprocess.run(["bash", "-n", "-c", rig.GUEST_NVME], check=True)
+
+
+@pytest.mark.parametrize("path", RIGS, ids=[p.stem for p in RIGS])
+def test_shipped_rigs_label_their_nvme(path):
+    topo = Topology(tomllib.loads(path.read_text())["rig"])
+    for dev in topo.devices:
+        if dev.get("device", "").startswith("nvme,") or "kvssd" in dev.get(
+            "server", ""
+        ):
+            assert dev.get("labels"), dev["name"]
