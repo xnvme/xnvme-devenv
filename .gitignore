@@ -3,3 +3,4 @@ cijoe/cijoe-output*/
 cijoe/*.egg-info/
 /.work/
 __pycache__/
+/.venv/

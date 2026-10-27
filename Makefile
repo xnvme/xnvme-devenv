@@ -11,8 +11,12 @@ WORKDIR ?= $(CURDIR)/.work
 # The container writes as root; reading what it left may need sudo
 SUDO ?=
 CIJOE_CONFIGS = --config ../lock.toml --config configs/images.toml
+# The rig qualify boots: rig names, from rigs/, or paths to rig files, each one
+# more config, later ones taking precedence, so a file can change one detail
+RIG ?= cluster-node-emulated
+RIG_CONFIGS = $(foreach r,$(RIG),--config $(if $(findstring /,$(r)),$(abspath $(r)),../rigs/$(r).toml))
 
-.PHONY: host ci logs derive qualify clean
+.PHONY: host ci logs derive qualify test clean
 
 host:
 	cd cijoe && DOCKER="$(DOCKER)" HOST_IMAGE="$(HOST_IMAGE)" cijoe workflows/host.yaml --monitor \
@@ -25,7 +29,7 @@ ci:
 			mkdir -p "$$HOME/run"; \
 			export PATH=$$HOME/.local/bin:$$PATH; \
 			pipx install ./cijoe --include-deps --force >/dev/null; \
-			make derive qualify'
+			make derive qualify RIG="$(RIG)"'
 
 # The ends of the guests' serial consoles and the servers' logs, after a ci run
 logs:
@@ -39,8 +43,13 @@ logs:
 derive:
 	cd cijoe && cijoe workflows/derive.yaml --monitor $(CIJOE_CONFIGS) --output $(CIJOE_OUTPUT)-derive
 
+# The unit tests of the cijoe scripts; they need cijoe and pytest, not the host
+PYTEST ?= pytest
+test:
+	cd cijoe && $(PYTEST) -q tests --config configs/images.toml --output $(CIJOE_OUTPUT)-test
+
 qualify:
-	cd cijoe && cijoe workflows/qualify.yaml --monitor $(CIJOE_CONFIGS) --output $(CIJOE_OUTPUT)-qualify
+	cd cijoe && cijoe workflows/qualify.yaml --monitor $(CIJOE_CONFIGS) $(RIG_CONFIGS) --output $(CIJOE_OUTPUT)-qualify
 
 clean:
 	rm -rf host/debs cijoe/$(CIJOE_OUTPUT)-* .work

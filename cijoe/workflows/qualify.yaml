@@ -2,11 +2,12 @@
 doc: |
   Qualify an xnvme-devenv guest against the host's servers
 
-  Starts rocjitsu and rocm-ernic, boots the derived guest with the NIC and a
-  free port beside it on one PCIe switch, and hot-plugs the GPU, which udev
-  brings up with the amdgpu the image carries. Then runs a GEMM on the GPU
-  and RDMA WRITE, READ and SEND into and out of VRAM, and checks with the
-  NIC's server that the transfers went through VRAM rather than system memory.
+  Boots the derived guest on the cluster-node-emulated rig, rocjitsu's GPU,
+  rocm-ernic's NIC and an NVMe drive behind one PCIe switch, with the NIC
+  present at boot, then plugs the GPU, which udev brings up with the amdgpu
+  the image carries. Then runs a GEMM on the GPU and RDMA WRITE, READ and
+  SEND into and out of VRAM, and checks with the NIC's server that the
+  transfers went through VRAM rather than system memory.
   Before those, checks that the guest runs our kernel and that io_uring moves
   data between an emulated NVMe drive and a dma-buf.
 
@@ -15,7 +16,7 @@ steps:
   uses: host_check
 
 - name: guest_kill
-  uses: qemu.guest_kill
+  uses: rig_guest_kill
   with:
     guest_name: qualify
 
@@ -26,17 +27,23 @@ steps:
     system_image_name: xnvme-devenv-guest-x86_64
 
 - name: guest_start
-  uses: rocjitsu_guest_start
+  uses: rig_guest_start
   with:
     guest_name: qualify
 
 - name: root_unlock
   uses: root_unlock
 
-- name: gpu_attach
-  uses: rocjitsu_gpu_attach
+- name: gpu_plug
+  uses: rig_device_plug
   with:
     guest_name: qualify
+    device_name: gpu0
+
+- name: gpu_up
+  run: |
+    for _ in $(seq 36); do test -e /dev/kfd && ls /dev/dri | grep -q renderD && break; sleep 5; done
+    test -e /dev/kfd && ls /dev/dri | grep -q renderD || { dmesg | grep -i amdgpu | tail -40; false; }
 
 # Our kernel, not the stock one, and its io_uring dma-buf support against the
 # emulated NVMe drive
@@ -66,6 +73,6 @@ steps:
   uses: rocm_ernic_peer_check
 
 - name: guest_shutdown
-  uses: qemu.guest_kill
+  uses: rig_guest_kill
   with:
     guest_name: qualify

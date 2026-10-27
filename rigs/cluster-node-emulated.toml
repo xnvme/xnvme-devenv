@@ -1,0 +1,41 @@
+# cluster-node-emulated: an emulated GPU, an emulated RDMA NIC and an NVMe
+# drive, behind one PCIe switch. The guest kernel allows peer-to-peer DMA
+# between devices behind one switch; between root ports it would need the q35
+# host bridge on its whitelist, and amdgpu would quietly fall back to system
+# memory.
+#
+# The GPU is rocjitsu, plugged after boot by 'rig_device_plug', since amdgpu
+# must be loaded with its options before the GPU appears. The NIC is
+# rocm-ernic, which reaches the GPU's VRAM through '--peer-memory': QEMU
+# announces the GPU's BAR to the NIC server as a DMA region without a file, so
+# the server maps rocjitsu's VRAM memfd itself, the first 2G of it, the size of
+# the BAR. Both servers are the host container's, from the same release as the
+# guest's firmware and drivers. See cijoe/scripts/rig.py for the format.
+
+[rig.pcie.switches.p2p]
+downstream_ports = 3
+
+# Listed first, as the NIC's server needs its VRAM
+[[rig.devices]]
+name = "gpu0"
+provider = "vfio-user"
+port = "p2p_dn1"
+boot = false
+socket = "{{ local.env.HOME }}/run/vfio-user-rocjitsu.sock"
+server = "/opt/rocjitsu/bin/rocjitsu --config /opt/rocjitsu/share/configs/gfx1250_mi455x_xnvme_ci.json --vfio-socket {socket}"
+
+[[rig.devices]]
+name = "nic0"
+provider = "vfio-user"
+port = "p2p_dn0"
+socket = "{{ local.env.HOME }}/run/vfio-user-rocm-ernic.sock"
+server = "/opt/rocm-ernic/bin/rocm-ernic --socket {socket} --backend loopback --log-level info --peer-memory \"$(/opt/rocjitsu/bin/rocjitsu-vram {pid:gpu0}):2G\""
+
+# A scratch drive for the kernel checks; its content does not matter
+[[rig.devices]]
+name = "nvme0"
+provider = "qemu"
+port = "p2p_dn2"
+device = "nvme,serial=xnvme-devenv,drive=nvme0_drv"
+drives = ["file={{ local.env.HOME }}/guests/rig-nvme0.img,if=none,id=nvme0_drv,format=raw,cache=none"]
+image = {path = "{{ local.env.HOME }}/guests/rig-nvme0.img", size = "1G"}
