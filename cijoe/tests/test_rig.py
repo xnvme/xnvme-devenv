@@ -9,6 +9,7 @@ import json
 import socket
 import sys
 import threading
+import tomllib
 from pathlib import Path
 
 import pytest
@@ -362,3 +363,53 @@ def test_rig_from_config_ignores_the_rig_variable(tmp_path, monkeypatch):
 
     topo = Topology.from_config(cijoe)
     assert [dev["name"] for dev in topo.devices] == ["nvme0", "gpu0", "nvme1"]
+
+
+def test_device_on_no_bus():
+    subsys = {"name": "s", "provider": "qemu", "bus": False, "device": "nvme-subsys"}
+    ctrl = {"name": "c", "provider": "qemu", "device": "nvme,subsys=s"}
+    topo = Topology({"devices": [subsys, ctrl]})
+
+    assert topo.port_args() == [
+        "-device",
+        "pcie-root-port,id=c_rp,chassis=1,slot=0",
+    ]
+    assert topo.boot_device_args() == [
+        "-device",
+        "nvme-subsys,id=s",
+        "-device",
+        "nvme,subsys=s,id=c,bus=c_rp",
+    ]
+
+    with pytest.raises(ValueError):
+        Topology({"devices": [{**subsys, "children": ["nvme-ns"]}]})
+
+
+def test_boot_args_are_shell_quoted():
+    dev = {
+        "name": "n",
+        "provider": "qemu",
+        "device": "nvme",
+        "drives": ["id=d,file=/a b.img"],
+        "children": ["nvme-ns,drive=d,fdp.ruhs=0;5"],
+    }
+    topo = Topology({"devices": [dev]})
+
+    assert topo.drive_args() == ["-drive", "'id=d,file=/a b.img'"]
+    assert topo.boot_device_args()[-1] == "'nvme-ns,drive=d,fdp.ruhs=0;5,id=n_c0,bus=n'"
+
+
+RIGS = sorted((Path(__file__).parents[2] / "rigs").glob("*.toml"))
+
+
+@pytest.mark.parametrize("path", RIGS, ids=[p.stem for p in RIGS])
+def test_shipped_rigs_parse(path):
+    Topology(tomllib.loads(path.read_text())["rig"]).port_args()
+
+
+def test_storage_node_keeps_its_bdfs():
+    path = Path(__file__).parents[2] / "rigs" / "storage-node-emulated.toml"
+    topo = Topology(tomllib.loads(path.read_text())["rig"])
+
+    ports = [a.split(",")[1] for a in topo.port_args() if a.startswith("pcie-root")]
+    assert ports == [f"id=nvme{i}_rp" for i in range(11)]

@@ -48,7 +48,8 @@ servers. `cijoe/scripts/rig.py` describes the format.
 A rig is named for the machine it stands in for and where its devices come
 from, emulated or passed through. `cluster-node-emulated` has an emulated GPU,
 an emulated RDMA NIC and an NVMe drive behind one PCIe switch, and a release
-is qualified on it. `make qualify RIG=...` takes rig names or paths to rig
+is qualified on it. `storage-node-emulated` has the NVMe controllers xNVMe's
+QEMU matrix tests, one per command set and format, each at a fixed BDF. `make qualify RIG=...` takes rig names or paths to rig
 files. Each is one more config, and later ones win, so a file of your own can
 change one detail of a rig without copying it.
 
