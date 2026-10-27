@@ -13,6 +13,7 @@ rocjitsu-guest-check and its sources, from guest/tests.
 Retargetable: false
 -------------------
 """
+
 import errno
 import logging as log
 import time
@@ -34,6 +35,7 @@ def reboot(cijoe, timeout=300):
             return True
         time.sleep(5)
     return False
+
 
 def add_args(parser: ArgumentParser):
     parser.add_argument("--debs", type=str, default=None)

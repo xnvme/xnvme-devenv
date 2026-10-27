@@ -10,6 +10,7 @@ unchecked is left behind. It fetches where cijoe runs, whatever the transport.
 Retargetable: false
 -------------------
 """
+
 import errno
 import hashlib
 import logging as log

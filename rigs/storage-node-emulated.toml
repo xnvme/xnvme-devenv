@@ -10,8 +10,7 @@
 # format.
 
 # nvme0: NVM
-[[rig.devices]]
-name = "nvme0"
+[rig.devices.nvme0]
 provider = "qemu"
 device = "nvme,serial=beef0000,mdts=7,ioeventfd=on"
 drives = ["id=nvme0n1,file={{ local.env.HOME }}/guests/storage-node-emulated/nvme0n1.img,format=raw,if=none,discard=on,detect-zeroes=unmap,cache=none,aio=io_uring"]
@@ -19,8 +18,7 @@ children = ["nvme-ns,drive=nvme0n1,nsid=1,logical_block_size=4096,physical_block
 image = {path = "{{ local.env.HOME }}/guests/storage-node-emulated/nvme0n1.img", size = "8G"}
 
 # nvme1: ZNS
-[[rig.devices]]
-name = "nvme1"
+[rig.devices.nvme1]
 provider = "qemu"
 device = "nvme,serial=beef0001,mdts=7,ioeventfd=on"
 drives = ["id=nvme1n1,file={{ local.env.HOME }}/guests/storage-node-emulated/nvme1n1.img,format=raw,if=none,discard=on,detect-zeroes=unmap,cache=none,aio=io_uring"]
@@ -28,15 +26,13 @@ children = ["nvme-ns,drive=nvme1n1,nsid=1,logical_block_size=4096,physical_block
 image = {path = "{{ local.env.HOME }}/guests/storage-node-emulated/nvme1n1.img", size = "8G"}
 
 # nvme2: KV
-[[rig.devices]]
-name = "nvme2"
+[rig.devices.nvme2]
 provider = "vfio-user"
 socket = "{{ local.env.HOME }}/run/vfu_kvssd.sock"
 server = "env VFU_KVSSD_TRACE=1 /usr/bin/vfu_kvssd -s {socket}"
 
 # nvme3: NVM, for the fabrics tests
-[[rig.devices]]
-name = "nvme3"
+[rig.devices.nvme3]
 provider = "qemu"
 device = "nvme,serial=beef0003,mdts=7,ioeventfd=on"
 drives = ["id=nvme3n1,file={{ local.env.HOME }}/guests/storage-node-emulated/nvme3n1.img,format=raw,if=none,discard=on,detect-zeroes=unmap,cache=none,aio=io_uring"]
@@ -44,8 +40,7 @@ children = ["nvme-ns,drive=nvme3n1,nsid=1,logical_block_size=4096,physical_block
 image = {path = "{{ local.env.HOME }}/guests/storage-node-emulated/nvme3n1.img", size = "8G"}
 
 # nvme4: NVM, large MDTS, 9, as stock QEMU rejects 0, unlimited
-[[rig.devices]]
-name = "nvme4"
+[rig.devices.nvme4]
 provider = "qemu"
 device = "nvme,serial=beef0004,mdts=9,ioeventfd=on"
 drives = ["id=nvme4n1,file={{ local.env.HOME }}/guests/storage-node-emulated/nvme4n1.img,format=raw,if=none,discard=on,detect-zeroes=unmap,cache=none,aio=io_uring"]
@@ -53,15 +48,13 @@ children = ["nvme-ns,drive=nvme4n1,nsid=1,logical_block_size=4096,physical_block
 image = {path = "{{ local.env.HOME }}/guests/storage-node-emulated/nvme4n1.img", size = "8G"}
 
 # The subsystem nvme5 is in, which has FDP enabled
-[[rig.devices]]
-name = "nvme5_subsys"
+[rig.devices.nvme5_subsys]
 provider = "qemu"
 bus = false
 device = "nvme-subsys,fdp=on,fdp.nruh=8,fdp.nrg=32,fdp.runs=40960"
 
 # nvme5: FDP
-[[rig.devices]]
-name = "nvme5"
+[rig.devices.nvme5]
 provider = "qemu"
 device = "nvme,serial=beef0005,mdts=7,ioeventfd=on,subsys=nvme5_subsys"
 drives = ["id=nvme5n1,file={{ local.env.HOME }}/guests/storage-node-emulated/nvme5n1.img,format=raw,if=none,discard=on,detect-zeroes=unmap,cache=none,aio=io_uring"]
@@ -69,8 +62,7 @@ children = ["nvme-ns,drive=nvme5n1,nsid=1,logical_block_size=4096,physical_block
 image = {path = "{{ local.env.HOME }}/guests/storage-node-emulated/nvme5n1.img", size = "8G"}
 
 # nvme6: PI type 1
-[[rig.devices]]
-name = "nvme6"
+[rig.devices.nvme6]
 provider = "qemu"
 device = "nvme,serial=beef0006,mdts=7,ioeventfd=on"
 drives = ["id=nvme6n1,file={{ local.env.HOME }}/guests/storage-node-emulated/nvme6n1.img,format=raw,if=none,discard=on,detect-zeroes=unmap,cache=none,aio=io_uring"]
@@ -78,8 +70,7 @@ children = ["nvme-ns,drive=nvme6n1,nsid=1,logical_block_size=4096,physical_block
 image = {path = "{{ local.env.HOME }}/guests/storage-node-emulated/nvme6n1.img", size = "8G"}
 
 # nvme7: PI type 2
-[[rig.devices]]
-name = "nvme7"
+[rig.devices.nvme7]
 provider = "qemu"
 device = "nvme,serial=beef0007,mdts=7,ioeventfd=on"
 drives = ["id=nvme7n1,file={{ local.env.HOME }}/guests/storage-node-emulated/nvme7n1.img,format=raw,if=none,discard=on,detect-zeroes=unmap,cache=none,aio=io_uring"]
@@ -87,8 +78,7 @@ children = ["nvme-ns,drive=nvme7n1,nsid=1,logical_block_size=4096,physical_block
 image = {path = "{{ local.env.HOME }}/guests/storage-node-emulated/nvme7n1.img", size = "8G"}
 
 # nvme8: PI type 3
-[[rig.devices]]
-name = "nvme8"
+[rig.devices.nvme8]
 provider = "qemu"
 device = "nvme,serial=beef0008,mdts=7,ioeventfd=on"
 drives = ["id=nvme8n1,file={{ local.env.HOME }}/guests/storage-node-emulated/nvme8n1.img,format=raw,if=none,discard=on,detect-zeroes=unmap,cache=none,aio=io_uring"]
@@ -96,8 +86,7 @@ children = ["nvme-ns,drive=nvme8n1,nsid=1,logical_block_size=4096,physical_block
 image = {path = "{{ local.env.HOME }}/guests/storage-node-emulated/nvme8n1.img", size = "8G"}
 
 # nvme9: PI type 1, extended LBA
-[[rig.devices]]
-name = "nvme9"
+[rig.devices.nvme9]
 provider = "qemu"
 device = "nvme,serial=beef0009,mdts=7,ioeventfd=on"
 drives = ["id=nvme9n1,file={{ local.env.HOME }}/guests/storage-node-emulated/nvme9n1.img,format=raw,if=none,discard=on,detect-zeroes=unmap,cache=none,aio=io_uring"]
@@ -105,8 +94,7 @@ children = ["nvme-ns,drive=nvme9n1,nsid=1,logical_block_size=4096,physical_block
 image = {path = "{{ local.env.HOME }}/guests/storage-node-emulated/nvme9n1.img", size = "8G"}
 
 # nvme10: PI type 1, 64b guard (pif=2)
-[[rig.devices]]
-name = "nvme10"
+[rig.devices.nvme10]
 provider = "qemu"
 device = "nvme,serial=beef0010,mdts=7,ioeventfd=on"
 drives = ["id=nvme10n1,file={{ local.env.HOME }}/guests/storage-node-emulated/nvme10n1.img,format=raw,if=none,discard=on,detect-zeroes=unmap,cache=none,aio=io_uring"]

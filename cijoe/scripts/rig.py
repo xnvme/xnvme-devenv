@@ -8,8 +8,7 @@ start a qemu guest with it, plug and unplug its devices, and kill it:
     [rig.pcie.switches.p2p]
     downstream_ports = 2
 
-    [[rig.devices]]
-    name = "nvme0"
+    [rig.devices.nvme0]
     provider = "qemu"
     port = "p2p_dn0"
     device = "nvme,serial=deadbeef"
@@ -17,13 +16,17 @@ start a qemu guest with it, plug and unplug its devices, and kill it:
     children = ["nvme-ns,drive=nvm0,nsid=1"]
     image = {path = "/path/nvme0.img", size = "1G"}
 
-    [[rig.devices]]
-    name = "gpu0"
+    [rig.devices.gpu0]
     provider = "vfio-user"
     port = "p2p_dn1"
     boot = false
     socket = "/tmp/gpu0.sock"
     server = "/usr/bin/some-server --socket {socket}"
+
+Devices are tables named for the device, in the order the file lists them. A
+config layered on the rig, as cijoe merges tables, changes a field of a device
+by naming it, '[rig.devices.nic0]' with only that field, and a device it adds
+comes after the rig's own, so theirs keep their ports and addresses.
 
 Each switch sits on a root port of its own, and its downstream ports are named
 '<switch>_dn<i>'. A device without a 'port' gets a root port of its own, named
@@ -80,11 +83,10 @@ class Topology:
 
     def __init__(self, rig: dict):
         self.switches = rig.get("pcie", {}).get("switches", {})
-        self.devices = rig.get("devices", [])
-
-        names = [dev.get("name") for dev in self.devices]
-        if None in names or len(set(names)) != len(names):
-            raise ValueError(f"devices need unique names; got {names}")
+        devices = rig.get("devices", {})
+        if not isinstance(devices, dict):
+            raise ValueError("devices are tables by name, '[rig.devices.<name>]'")
+        self.devices = [{**dev, "name": name} for name, dev in devices.items()]
 
         self.ports = {}
         for switch, cfg in self.switches.items():

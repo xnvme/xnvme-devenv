@@ -11,6 +11,7 @@ the report says what the host had.
 Retargetable: false
 -------------------
 """
+
 import errno
 import logging as log
 import subprocess
