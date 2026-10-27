@@ -4,3 +4,4 @@ cijoe/*.egg-info/
 /.work/
 __pycache__/
 /.venv/
+cijoe/build/
