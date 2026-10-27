@@ -26,7 +26,9 @@ start a qemu guest with it, plug and unplug its devices, and kill it:
 Devices are tables named for the device, in the order the file lists them. A
 config layered on the rig, as cijoe merges tables, changes a field of a device
 by naming it, '[rig.devices.nic0]' with only that field, and a device it adds
-comes after the rig's own, so theirs keep their ports and addresses.
+comes after the rig's own, so theirs keep their ports and addresses. Fields
+the scripts do not know are left for the rig's users, such as a NIC's
+'transport', how the guest reaches the target at its far end.
 
 Each switch sits on a root port of its own, and its downstream ports are named
 '<switch>_dn<i>'. A device without a 'port' gets a root port of its own, named
