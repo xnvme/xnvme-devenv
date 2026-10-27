@@ -34,7 +34,9 @@ A device of provider 'qemu' is one QEMU emulates: 'device' is its '-device'
 argument without 'id' and 'bus', which are added, 'drives' are '-drive'
 arguments, 'children' are '-device' arguments put on the bus the device
 provides, such as an NVMe controller's namespaces, and 'image', when given, is
-created as a sparse file when it is missing.
+created as a sparse file when it is missing. A device that sits on no bus, such
+as an 'nvme-subsys' its controllers name, sets 'bus = false', and gets neither
+a port nor children.
 
 A device of provider 'vfio-user' is served by a process on the initiator:
 'server' is its command line, with '{socket}' replaced by 'socket' and
@@ -58,6 +60,7 @@ import json
 import logging as log
 import os
 import re
+import shlex
 import signal
 import socket as sockets
 import time
@@ -94,6 +97,13 @@ class Topology:
             port = dev.get("port")
             if port is not None and port not in self.ports:
                 raise ValueError(f"device {dev['name']}: no port named {port}")
+            if dev.get("bus", True) is False and (
+                port or dev.get("children") or dev["provider"] != "qemu"
+            ):
+                raise ValueError(
+                    f"device {dev['name']}: 'bus = false' is a qemu device without"
+                    " a port or children"
+                )
 
         taken = [dev["port"] for dev in self.devices if dev.get("port")]
         if len(set(taken)) != len(taken):
@@ -115,7 +125,10 @@ class Topology:
 
     @staticmethod
     def bus(dev: dict):
-        """The bus 'dev' goes on"""
+        """The bus 'dev' goes on; None when it goes on none"""
+
+        if dev.get("bus", True) is False:
+            return None
 
         return dev.get("port") or f"{dev['name']}_rp"
 
@@ -142,25 +155,26 @@ class Topology:
                 ]
 
         for dev in self.devices:
-            if not dev.get("port"):
+            if not dev.get("port") and self.bus(dev):
                 args += root_port(self.bus(dev))
 
         return args
 
     def drive_args(self):
-        """The '-drive' arguments of every device, present or not"""
+        """The '-drive' arguments of every device, present or not, shell-quoted"""
 
         args = []
         for dev in self.devices:
             for drive in dev.get("drives", []):
-                args += ["-drive", drive]
+                args += ["-drive", shlex.quote(drive)]
 
         return args
 
     def qemu_device_specs(self, dev: dict):
         """The '-device' arguments, as strings, of a 'qemu' device and its children"""
 
-        specs = [f"{dev['device']},id={dev['name']},bus={self.bus(dev)}"]
+        bus = self.bus(dev)
+        specs = [f"{dev['device']},id={dev['name']}" + (f",bus={bus}" if bus else "")]
         for i, child in enumerate(dev.get("children", [])):
             specs.append(f"{child},id={dev['name']}_c{i},bus={dev['name']}")
 
@@ -182,7 +196,8 @@ class Topology:
         return props
 
     def boot_device_args(self):
-        """The '-device' arguments of the devices present at boot"""
+        """The '-device' arguments of the devices present at boot, shell-quoted, as
+        qemu is run through a shell"""
 
         args = []
         for dev in self.devices:
@@ -190,10 +205,9 @@ class Topology:
                 continue
             if dev["provider"] == "qemu":
                 for spec in self.qemu_device_specs(dev):
-                    args += ["-device", spec]
+                    args += ["-device", shlex.quote(spec)]
             else:
-                # Single-quoted, as qemu is run through a shell
-                args += ["-device", f"'{json.dumps(self.vfio_user_props(dev))}'"]
+                args += ["-device", shlex.quote(json.dumps(self.vfio_user_props(dev)))]
 
         return args
 

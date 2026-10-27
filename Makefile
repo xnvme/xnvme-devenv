@@ -16,7 +16,7 @@ CIJOE_CONFIGS = --config ../lock.toml --config configs/images.toml
 RIG ?= cluster-node-emulated
 RIG_CONFIGS = $(foreach r,$(RIG),--config $(if $(findstring /,$(r)),$(abspath $(r)),../rigs/$(r).toml))
 
-.PHONY: host ci logs derive qualify test clean
+.PHONY: host ci logs derive qualify qualify-storage test clean
 
 host:
 	cd cijoe && DOCKER="$(DOCKER)" HOST_IMAGE="$(HOST_IMAGE)" cijoe workflows/host.yaml --monitor \
@@ -29,12 +29,12 @@ ci:
 			mkdir -p "$$HOME/run"; \
 			export PATH=$$HOME/.local/bin:$$PATH; \
 			pipx install ./cijoe --include-deps --force >/dev/null; \
-			make derive qualify RIG="$(RIG)"'
+			make derive qualify qualify-storage RIG="$(RIG)"'
 
 # The ends of the guests' serial consoles and the servers' logs, after a ci run
 logs:
 	@for f in $(WORKDIR)/home/guests/xnvme-devenv-*/serial.output \
-		$(WORKDIR)/home/run/vfio-user-*.log; do \
+		$(WORKDIR)/home/run/*.log; do \
 		echo "::group::$$f (tail)"; \
 		$(SUDO) tail -c 20000 "$$f" 2>/dev/null || echo "missing"; \
 		echo "::endgroup::"; \
@@ -50,6 +50,10 @@ test:
 
 qualify:
 	cd cijoe && cijoe workflows/qualify.yaml --monitor $(CIJOE_CONFIGS) $(RIG_CONFIGS) --output $(CIJOE_OUTPUT)-qualify
+
+# The storage-node-emulated rig boots with its controllers where consumers expect
+qualify-storage:
+	cd cijoe && cijoe workflows/qualify-storage.yaml --monitor $(CIJOE_CONFIGS) --config ../rigs/storage-node-emulated.toml --output $(CIJOE_OUTPUT)-qualify-storage
 
 clean:
 	rm -rf host/debs cijoe/$(CIJOE_OUTPUT)-* .work

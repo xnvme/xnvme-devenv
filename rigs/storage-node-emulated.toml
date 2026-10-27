@@ -1,0 +1,114 @@
+# storage-node-emulated: the NVMe controllers xNVMe's QEMU matrix tests, one
+# namespace on each, each controller on a root port of its own. They are listed
+# in the order of their BDFs, 0000:01:00.0 for nvme0 to 0000:0b:00.0 for nvme10,
+# which consumers' device lists name, so a controller is added at the end.
+#
+# The QEMU is the host container's, stock, without native KV: the KV controller
+# is vfu_kvssd over vfio-user. The drives bypass the host page cache, since with
+# writeback a FLUSH syncs every write since the last, and on a slow host disk
+# that outlasts the guest's 30 s I/O timeout. See cijoe/scripts/rig.py for the
+# format.
+
+# nvme0: NVM
+[[rig.devices]]
+name = "nvme0"
+provider = "qemu"
+device = "nvme,serial=beef0000,mdts=7,ioeventfd=on"
+drives = ["id=nvme0n1,file={{ local.env.HOME }}/guests/storage-node-emulated/nvme0n1.img,format=raw,if=none,discard=on,detect-zeroes=unmap,cache=none,aio=io_uring"]
+children = ["nvme-ns,drive=nvme0n1,nsid=1,logical_block_size=4096,physical_block_size=4096"]
+image = {path = "{{ local.env.HOME }}/guests/storage-node-emulated/nvme0n1.img", size = "8G"}
+
+# nvme1: ZNS
+[[rig.devices]]
+name = "nvme1"
+provider = "qemu"
+device = "nvme,serial=beef0001,mdts=7,ioeventfd=on"
+drives = ["id=nvme1n1,file={{ local.env.HOME }}/guests/storage-node-emulated/nvme1n1.img,format=raw,if=none,discard=on,detect-zeroes=unmap,cache=none,aio=io_uring"]
+children = ["nvme-ns,drive=nvme1n1,nsid=1,logical_block_size=4096,physical_block_size=4096,zoned=on,zoned.zone_size=32M,zoned.zone_capacity=28M,zoned.max_active=256,zoned.max_open=256,zoned.zrwas=131072,zoned.zrwafg=65536,zoned.numzrwa=256"]
+image = {path = "{{ local.env.HOME }}/guests/storage-node-emulated/nvme1n1.img", size = "8G"}
+
+# nvme2: KV
+[[rig.devices]]
+name = "nvme2"
+provider = "vfio-user"
+socket = "{{ local.env.HOME }}/run/vfu_kvssd.sock"
+server = "env VFU_KVSSD_TRACE=1 /usr/bin/vfu_kvssd -s {socket}"
+
+# nvme3: NVM, for the fabrics tests
+[[rig.devices]]
+name = "nvme3"
+provider = "qemu"
+device = "nvme,serial=beef0003,mdts=7,ioeventfd=on"
+drives = ["id=nvme3n1,file={{ local.env.HOME }}/guests/storage-node-emulated/nvme3n1.img,format=raw,if=none,discard=on,detect-zeroes=unmap,cache=none,aio=io_uring"]
+children = ["nvme-ns,drive=nvme3n1,nsid=1,logical_block_size=4096,physical_block_size=4096"]
+image = {path = "{{ local.env.HOME }}/guests/storage-node-emulated/nvme3n1.img", size = "8G"}
+
+# nvme4: NVM, large MDTS, 9, as stock QEMU rejects 0, unlimited
+[[rig.devices]]
+name = "nvme4"
+provider = "qemu"
+device = "nvme,serial=beef0004,mdts=9,ioeventfd=on"
+drives = ["id=nvme4n1,file={{ local.env.HOME }}/guests/storage-node-emulated/nvme4n1.img,format=raw,if=none,discard=on,detect-zeroes=unmap,cache=none,aio=io_uring"]
+children = ["nvme-ns,drive=nvme4n1,nsid=1,logical_block_size=4096,physical_block_size=4096"]
+image = {path = "{{ local.env.HOME }}/guests/storage-node-emulated/nvme4n1.img", size = "8G"}
+
+# The subsystem nvme5 is in, which has FDP enabled
+[[rig.devices]]
+name = "nvme5_subsys"
+provider = "qemu"
+bus = false
+device = "nvme-subsys,fdp=on,fdp.nruh=8,fdp.nrg=32,fdp.runs=40960"
+
+# nvme5: FDP
+[[rig.devices]]
+name = "nvme5"
+provider = "qemu"
+device = "nvme,serial=beef0005,mdts=7,ioeventfd=on,subsys=nvme5_subsys"
+drives = ["id=nvme5n1,file={{ local.env.HOME }}/guests/storage-node-emulated/nvme5n1.img,format=raw,if=none,discard=on,detect-zeroes=unmap,cache=none,aio=io_uring"]
+children = ["nvme-ns,drive=nvme5n1,nsid=1,logical_block_size=4096,physical_block_size=4096,fdp.ruhs=0;5;6;7"]
+image = {path = "{{ local.env.HOME }}/guests/storage-node-emulated/nvme5n1.img", size = "8G"}
+
+# nvme6: PI type 1
+[[rig.devices]]
+name = "nvme6"
+provider = "qemu"
+device = "nvme,serial=beef0006,mdts=7,ioeventfd=on"
+drives = ["id=nvme6n1,file={{ local.env.HOME }}/guests/storage-node-emulated/nvme6n1.img,format=raw,if=none,discard=on,detect-zeroes=unmap,cache=none,aio=io_uring"]
+children = ["nvme-ns,drive=nvme6n1,nsid=1,logical_block_size=4096,physical_block_size=4096,ms=8,pi=1"]
+image = {path = "{{ local.env.HOME }}/guests/storage-node-emulated/nvme6n1.img", size = "8G"}
+
+# nvme7: PI type 2
+[[rig.devices]]
+name = "nvme7"
+provider = "qemu"
+device = "nvme,serial=beef0007,mdts=7,ioeventfd=on"
+drives = ["id=nvme7n1,file={{ local.env.HOME }}/guests/storage-node-emulated/nvme7n1.img,format=raw,if=none,discard=on,detect-zeroes=unmap,cache=none,aio=io_uring"]
+children = ["nvme-ns,drive=nvme7n1,nsid=1,logical_block_size=4096,physical_block_size=4096,ms=8,pi=2"]
+image = {path = "{{ local.env.HOME }}/guests/storage-node-emulated/nvme7n1.img", size = "8G"}
+
+# nvme8: PI type 3
+[[rig.devices]]
+name = "nvme8"
+provider = "qemu"
+device = "nvme,serial=beef0008,mdts=7,ioeventfd=on"
+drives = ["id=nvme8n1,file={{ local.env.HOME }}/guests/storage-node-emulated/nvme8n1.img,format=raw,if=none,discard=on,detect-zeroes=unmap,cache=none,aio=io_uring"]
+children = ["nvme-ns,drive=nvme8n1,nsid=1,logical_block_size=4096,physical_block_size=4096,ms=8,pi=3"]
+image = {path = "{{ local.env.HOME }}/guests/storage-node-emulated/nvme8n1.img", size = "8G"}
+
+# nvme9: PI type 1, extended LBA
+[[rig.devices]]
+name = "nvme9"
+provider = "qemu"
+device = "nvme,serial=beef0009,mdts=7,ioeventfd=on"
+drives = ["id=nvme9n1,file={{ local.env.HOME }}/guests/storage-node-emulated/nvme9n1.img,format=raw,if=none,discard=on,detect-zeroes=unmap,cache=none,aio=io_uring"]
+children = ["nvme-ns,drive=nvme9n1,nsid=1,logical_block_size=4096,physical_block_size=4096,ms=8,mset=1,pi=1"]
+image = {path = "{{ local.env.HOME }}/guests/storage-node-emulated/nvme9n1.img", size = "8G"}
+
+# nvme10: PI type 1, 64b guard (pif=2)
+[[rig.devices]]
+name = "nvme10"
+provider = "qemu"
+device = "nvme,serial=beef0010,mdts=7,ioeventfd=on"
+drives = ["id=nvme10n1,file={{ local.env.HOME }}/guests/storage-node-emulated/nvme10n1.img,format=raw,if=none,discard=on,detect-zeroes=unmap,cache=none,aio=io_uring"]
+children = ["nvme-ns,drive=nvme10n1,nsid=1,logical_block_size=4096,physical_block_size=4096,ms=16,pi=1,pif=2"]
+image = {path = "{{ local.env.HOME }}/guests/storage-node-emulated/nvme10n1.img", size = "8G"}
