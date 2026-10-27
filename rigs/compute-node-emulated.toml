@@ -11,8 +11,7 @@
 [rig.pcie.switches.p2p]
 downstream_ports = 2
 
-[[rig.devices]]
-name = "nvme0"
+[rig.devices.nvme0]
 provider = "qemu"
 port = "p2p_dn0"
 device = "nvme,serial=beef00ff,mdts=7,ioeventfd=on"
@@ -20,8 +19,7 @@ drives = ["id=nvme0n1,file={{ local.env.HOME }}/guests/compute-node-emulated/nvm
 children = ["nvme-ns,drive=nvme0n1,nsid=1,logical_block_size=4096,physical_block_size=4096"]
 image = {path = "{{ local.env.HOME }}/guests/compute-node-emulated/nvme0n1.img", size = "8G"}
 
-[[rig.devices]]
-name = "gpu0"
+[rig.devices.gpu0]
 provider = "vfio-user"
 port = "p2p_dn1"
 boot = false

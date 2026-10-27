@@ -13,6 +13,7 @@ which is beside the socket of the rig's device 'device_name'.
 Retargetable: false
 -------------------
 """
+
 import errno
 import logging as log
 from argparse import ArgumentParser

@@ -17,7 +17,23 @@ import pytest
 import rig
 from cijoe.core.command import Cijoe
 from cijoe.core.resources import Config
-from rig import QMP, Server, Topology
+from rig import QMP, Server
+
+
+def keyed(rig_dict):
+    """The rig with its devices by name, from devices listed with their names, as
+    the tests write them"""
+
+    devices = rig_dict.get("devices")
+    if not isinstance(devices, list):
+        return rig_dict
+    by_name = {d["name"]: {k: v for k, v in d.items() if k != "name"} for d in devices}
+    return {**rig_dict, "devices": by_name}
+
+
+def Topology(rig_dict):
+    return rig.Topology(keyed(rig_dict))
+
 
 SWITCHED = {
     "pcie": {"switches": {"sw": {"downstream_ports": 2}}},
@@ -117,13 +133,6 @@ def test_vfio_user_at_boot_is_json():
 @pytest.mark.parametrize(
     "guest_config",
     [
-        {
-            "devices": [
-                {"name": "a", "provider": "qemu"},
-                {"name": "a", "provider": "qemu"},
-            ]
-        },
-        {"devices": [{"provider": "qemu"}]},
         {"devices": [{"name": "a", "provider": "vfio-pci"}]},
         {"devices": [{"name": "a", "provider": "qemu", "port": "nowhere"}]},
         {
@@ -134,7 +143,7 @@ def test_vfio_user_at_boot_is_json():
             ],
         },
     ],
-    ids=["duplicate-name", "no-name", "unknown-provider", "unknown-port", "port-twice"],
+    ids=["unknown-provider", "unknown-port", "port-twice"],
 )
 def test_invalid(guest_config):
     with pytest.raises(ValueError):
@@ -358,10 +367,10 @@ def test_create_images(tmp_path):
 
 def test_rig_from_config_ignores_the_rig_variable(tmp_path, monkeypatch):
     cijoe = make_cijoe(tmp_path)
-    cijoe.config.options = {"rig": SWITCHED}
+    cijoe.config.options = {"rig": keyed(SWITCHED)}
     monkeypatch.setenv("RIG", "cluster-node-emulated")
 
-    topo = Topology.from_config(cijoe)
+    topo = rig.Topology.from_config(cijoe)
     assert [dev["name"] for dev in topo.devices] == ["nvme0", "gpu0", "nvme1"]
 
 
@@ -399,7 +408,8 @@ def test_boot_args_are_shell_quoted():
     assert topo.boot_device_args()[-1] == "'nvme-ns,drive=d,fdp.ruhs=0;5,id=n_c0,bus=n'"
 
 
-RIGS = sorted((Path(__file__).parents[2] / "rigs").glob("*.toml"))
+RIGS_DIR = Path(__file__).parents[2] / "rigs"
+RIGS = sorted(RIGS_DIR.glob("*.toml"))
 
 
 @pytest.mark.parametrize("path", RIGS, ids=[p.stem for p in RIGS])
@@ -435,3 +445,25 @@ def test_gpu_rigs_have_the_same_nvme():
         return dev["device"], dev["children"], dev["image"]["size"]
 
     assert nvme0("cluster-node-emulated") == nvme0("compute-node-emulated")
+
+
+def test_devices_listed_as_an_array_are_refused():
+    with pytest.raises(ValueError):
+        rig.Topology({"devices": [{"name": "a", "provider": "qemu"}]})
+
+
+def test_a_layered_config_changes_one_field_and_appends_devices(tmp_path):
+    from cijoe.cli.cli import create_combined_toml
+
+    layer = tmp_path / "layer.toml"
+    layer.write_text(
+        '[rig.devices.nic0]\nserver = "other {socket}"\n'
+        '[rig.devices.extra]\nprovider = "qemu"\ndevice = "nvme"\n'
+    )
+    combined = tmp_path / "combined.toml"
+    create_combined_toml([RIGS_DIR / "cluster-node-emulated.toml", layer], combined)
+
+    topo = rig.Topology(tomllib.loads(combined.read_text())["rig"])
+    assert [d["name"] for d in topo.devices] == ["gpu0", "nic0", "nvme0", "extra"]
+    assert topo.device("nic0")["server"] == "other {socket}"
+    assert topo.device("nic0")["port"] == "p2p_dn0", "the rest of nic0 is kept"
