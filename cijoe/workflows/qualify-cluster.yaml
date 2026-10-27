@@ -1,6 +1,6 @@
 ---
 doc: |
-  Qualify an xnvme-devenv guest against the host's servers
+  Qualify an xnvme-devenv guest on the cluster-node-emulated rig
 
   Boots the derived guest on the cluster-node-emulated rig, rocjitsu's GPU,
   rocm-ernic's NIC and an NVMe drive behind one PCIe switch, with the NIC
