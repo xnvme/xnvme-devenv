@@ -110,7 +110,7 @@ jobs:
         layer=$(oras manifest fetch "$GUEST_IMAGE:$TAG" | jq -r \
           '.layers[] | select(.annotations["org.opencontainers.image.title"] == "xnvme-devenv-guest-x86_64.img.gz") | .digest')
         test -n "$layer"
-        sudo tar -czf cijoe-reports.tar.gz -C cijoe cijoe-output-host cijoe-output-derive cijoe-output-qualify-cluster cijoe-output-qualify-storage
+        sudo tar -czf cijoe-reports.tar.gz -C cijoe cijoe-output-host cijoe-output-derive cijoe-output-qualify-cluster cijoe-output-qualify-storage cijoe-output-qualify-fabrics
         cp /mnt/xnvme-devenv/home/system_imaging/disk/xnvme-devenv-guest-x86_64.img.gz.sha256 .
         cat > notes.md <<NOTES
         Host: \`$HOST_IMAGE:$TAG\`

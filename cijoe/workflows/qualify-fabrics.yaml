@@ -1,0 +1,40 @@
+---
+doc: |
+  Qualify an xnvme-devenv guest on the fabrics-node-emulated rig
+
+  Boots the derived guest on the rig, gives the NIC's netdev the guest's end of
+  the transport, and checks that the kernel's NVMe/RDMA initiator discovers the
+  target the NIC's server runs.
+
+steps:
+- name: guest_kill
+  uses: rig_guest_kill
+  with:
+    guest_name: qualify
+
+- name: guest_initialize
+  uses: qemu.guest_initialize
+  with:
+    guest_name: qualify
+    system_image_name: xnvme-devenv-guest-x86_64
+
+- name: guest_start
+  uses: rig_guest_start
+  with:
+    guest_name: qualify
+
+- name: root_unlock
+  uses: root_unlock
+
+- name: test_discover
+  run: |
+    ip addr replace {{ config.rig.devices.nic0.transport.guest_addr }} dev {{ config.rig.devices.nic0.transport.netdev }}
+    ip link set {{ config.rig.devices.nic0.transport.netdev }} up
+    ip neigh replace {{ config.rig.devices.nic0.transport.traddr }} lladdr {{ config.rig.devices.nic0.transport.target_lladdr }} dev {{ config.rig.devices.nic0.transport.netdev }} nud permanent
+    modprobe nvme-rdma
+    nvme discover -t rdma -a {{ config.rig.devices.nic0.transport.traddr }} -s {{ config.rig.devices.nic0.transport.trsvcid }} | grep {{ config.rig.devices.nic0.transport.subnqn }}
+
+- name: guest_shutdown
+  uses: rig_guest_kill
+  with:
+    guest_name: qualify

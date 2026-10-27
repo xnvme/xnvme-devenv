@@ -17,7 +17,7 @@ CIJOE_CONFIGS = --config ../lock.toml --config configs/images.toml
 RIG ?= cluster-node-emulated
 RIG_CONFIGS = $(foreach r,$(RIG),--config $(if $(findstring /,$(r)),$(abspath $(r)),../rigs/$(r).toml))
 
-.PHONY: host ci logs derive qualify-cluster qualify-storage test clean
+.PHONY: host ci logs derive qualify-cluster qualify-storage qualify-fabrics test clean
 
 host:
 	cd cijoe && DOCKER="$(DOCKER)" HOST_IMAGE="$(HOST_IMAGE)" cijoe workflows/host.yaml --monitor \
@@ -30,7 +30,7 @@ ci:
 			mkdir -p "$$HOME/run"; \
 			export PATH=$$HOME/.local/bin:$$PATH; \
 			pipx install ./cijoe --include-deps --force >/dev/null; \
-			make derive qualify-cluster qualify-storage RIG="$(RIG)"'
+			make derive qualify-cluster qualify-storage qualify-fabrics RIG="$(RIG)"'
 
 # The ends of the guests' serial consoles and the servers' logs, after a ci run
 logs:
@@ -55,6 +55,10 @@ qualify-cluster:
 # The storage-node-emulated rig boots with its controllers where consumers expect
 qualify-storage:
 	cd cijoe && cijoe workflows/qualify-storage.yaml --monitor $(CIJOE_CONFIGS) --config ../rigs/storage-node-emulated.toml --output $(CIJOE_OUTPUT)-qualify-storage
+
+# The fabrics-node-emulated rig's NVMe/RDMA target answers the guest's initiator
+qualify-fabrics:
+	cd cijoe && cijoe workflows/qualify-fabrics.yaml --monitor $(CIJOE_CONFIGS) --config ../rigs/fabrics-node-emulated.toml --output $(CIJOE_OUTPUT)-qualify-fabrics
 
 clean:
 	rm -rf host/debs cijoe/$(CIJOE_OUTPUT)-* .work
