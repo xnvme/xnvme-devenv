@@ -1,0 +1,18 @@
+# storage-node-passthru: the machine's own NVMe drive, passed through to the
+# guest with vfio-pci, on a root port of its own, so the guest drives real
+# hardware with the same environment as the emulated rigs. The drive is the
+# machine's, so its BDF is too: the machine's config sets it, layered on this
+# rig, as
+#
+#   [rig.devices.nvme0]
+#   host = "0000:02:00.0"
+#
+# along with the labels the drive earns beyond 'nvm'. rig_guest_start binds the
+# drive and the rest of its IOMMU group to vfio-pci, and refuses a drive the
+# host has mounted. The host's IOMMU must be on and memlock unlimited, and the
+# host container needs /dev/vfio, as with '--privileged --ulimit memlock=-1'.
+# See cijoe/scripts/rig.py for the format.
+
+[rig.devices.nvme0]
+provider = "vfio-pci"
+labels = ["nvm"]

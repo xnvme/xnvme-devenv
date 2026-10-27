@@ -59,7 +59,9 @@ is qualified on it. `storage-node-emulated` has the NVMe controllers xNVMe's
 QEMU matrix tests, one per command set and format, each at a fixed BDF.
 `compute-node-emulated` has the GPU and one NVMe controller behind a switch.
 `fabrics-node-emulated` has the RDMA NIC alone, its far end an NVMe/RDMA
-target.
+target. `storage-node-passthru` passes the machine's own NVMe drive through
+with vfio-pci; the machine's config gives its BDF, and the host container
+needs `--privileged --ulimit memlock=-1`.
 `make qualify-cluster RIG=...` takes rig names or paths to rig files. Each is
 one more config, and later ones win, so a file of your own can change one
 detail of a rig without copying it.

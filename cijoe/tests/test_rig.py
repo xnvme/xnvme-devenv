@@ -106,7 +106,7 @@ def test_only_boot_devices_at_boot():
 
 def test_vfio_user_props_typed():
     topo = Topology(SWITCHED)
-    assert topo.vfio_user_props(topo.device("gpu0")) == {
+    assert topo.json_props(topo.device("gpu0")) == {
         "rombar": 0,
         "x-msg-timeout": 1000,
         "driver": "vfio-user-pci",
@@ -134,7 +134,7 @@ def test_vfio_user_at_boot_is_json():
 @pytest.mark.parametrize(
     "guest_config",
     [
-        {"devices": [{"name": "a", "provider": "vfio-pci"}]},
+        {"devices": [{"name": "a", "provider": "nope"}]},
         {"devices": [{"name": "a", "provider": "qemu", "port": "nowhere"}]},
         {
             "pcie": {"switches": {"sw": {}}},
@@ -536,3 +536,128 @@ def test_shipped_rigs_label_their_nvme(path):
             "server", ""
         ):
             assert dev.get("labels"), dev["name"]
+
+
+def fake_sysfs(root: Path):
+    """A sysfs with an NVMe drive bound to nvme, a bridge and a device already on
+    vfio-pci, all in IOMMU group 5, and a drive in no group"""
+
+    devices = root / "bus" / "pci" / "devices"
+    drivers = root / "bus" / "pci" / "drivers"
+    group = root / "kernel" / "iommu_groups" / "5" / "devices"
+    for name in ("nvme", "vfio-pci", "pcieport"):
+        (drivers / name).mkdir(parents=True)
+        (drivers / name / "unbind").write_text("")
+    group.mkdir(parents=True)
+    (root / "bus" / "pci" / "drivers_probe").write_text("")
+
+    for bdf, cls, driver in [
+        ("0000:02:00.0", "0x010802", "nvme"),
+        ("0000:00:01.1", "0x060400", "pcieport"),
+        ("0000:02:00.1", "0x010802", "vfio-pci"),
+    ]:
+        dev = root / "devices" / bdf
+        dev.mkdir(parents=True)
+        (dev / "class").write_text(cls + "\n")
+        (dev / "driver_override").write_text("")
+        (dev / "driver").symlink_to(drivers / driver)
+        (dev / "iommu_group").symlink_to(group.parent)
+        (devices / bdf).parent.mkdir(parents=True, exist_ok=True)
+        (devices / bdf).symlink_to(dev)
+        (group / bdf).symlink_to(dev)
+    (root / "devices" / "0000:02:00.0" / "nvme" / "nvme3" / "nvme3n1").mkdir(
+        parents=True
+    )
+
+    lone = root / "devices" / "0000:03:00.0"
+    lone.mkdir(parents=True)
+    (devices / "0000:03:00.0").symlink_to(lone)
+
+    return root
+
+
+def test_passthru_group_leaves_bridges_alone(tmp_path):
+    sysfs = fake_sysfs(tmp_path)
+    assert rig.group_members("0000:02:00.0", sysfs) == ["0000:02:00.0", "0000:02:00.1"]
+
+
+class Recorder:
+    """A cijoe whose run_local records the commands, answering with 'output'"""
+
+    class State:
+        def __init__(self, output):
+            self._output = output
+
+        def output(self):
+            return self._output
+
+    def __init__(self, output="", err=0):
+        self.commands = []
+        self.reply = (err, Recorder.State(output))
+
+    def run_local(self, cmd):
+        self.commands.append(cmd)
+        return self.reply
+
+
+def test_bind_vfio_binds_with_devbind_what_is_not_on_vfio(tmp_path):
+    sysfs = fake_sysfs(tmp_path)
+    cijoe = Recorder()
+
+    assert rig.bind_vfio(cijoe, "0000:02:00.0", sysfs) == ["0000:02:00.0"]
+    assert cijoe.commands == ["devbind --bind vfio-pci --device 0000:02:00.0"]
+    assert rig.bind_vfio(Recorder(err=1), "0000:02:00.0", sysfs) is None
+
+
+@pytest.mark.parametrize(
+    "mode,ok",
+    [("pt", True), ("strict", True), ("off-for-vfio", False), ("unset", False)],
+)
+def test_iommu_mode_from_iommu_show(mode, ok):
+    shown = f"cmdline:   BOOT_IMAGE=/vmlinuz ro\nmode:      {mode}\ngroups:    40 group(s)\n"
+    cijoe = Recorder(shown)
+
+    assert (rig.iommu_problems(cijoe) == []) is ok
+    assert cijoe.commands == ["iommu show"]
+
+
+@pytest.mark.parametrize(
+    "host,mounted,expect",
+    [
+        ("0000:02:00.0", "", []),
+        ("0000:02:00.0", "/dev/nvme3n1p2 / ext4 rw 0 0", ["has /dev/nvme3n1 mounted"]),
+        ("02:00.0", "", ["is not a BDF"]),
+        ("0000:09:00.0", "", ["no PCI device"]),
+        ("0000:03:00.0", "", ["in no IOMMU group"]),
+    ],
+    ids=["ok", "mounted", "not-a-bdf", "missing", "no-iommu"],
+)
+def test_passthru_problems(tmp_path, host, mounted, expect):
+    sysfs = fake_sysfs(tmp_path / "sys")
+    mounts = tmp_path / "mounts"
+    mounts.write_text(mounted + "\n")
+
+    dev = {"name": "nvme0", "provider": "vfio-pci", "host": host}
+    problems = rig.passthru_problems(dev, sysfs, mounts)
+    assert len(problems) == len(expect)
+    for problem, part in zip(problems, expect):
+        assert part in problem
+
+
+def test_vfio_pci_device_args_and_plug(tmp_path):
+    dev = {"name": "nvme0", "provider": "vfio-pci", "host": "0000:02:00.0"}
+    topo = Topology({"devices": [dev, {**dev, "name": "late", "boot": False}]})
+
+    args = topo.boot_device_args()
+    assert len(args) == 2, "only the device present at boot"
+    assert json.loads(args[1][1:-1]) == {
+        "driver": "vfio-pci",
+        "id": "nvme0",
+        "bus": "nvme0_rp",
+        "host": "0000:02:00.0",
+    }
+    assert topo.served() == [], "a passed-through device has no server"
+
+    fake = FakeQMP(tmp_path / "qmp.sock")
+    assert rig.plug(tmp_path, topo, "late") == 0
+    assert fake.executed()[0]["arguments"]["driver"] == "vfio-pci"
