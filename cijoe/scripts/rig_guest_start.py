@@ -6,7 +6,8 @@ Start a qemu guest with its rig
 Binds the host devices the rig passes through to vfio-pci, creates the images
 the rig's devices name, starts their servers, in the order the devices are
 listed, then the guest with the rig's PCIe topology and the devices present at
-boot, and waits for it to reach its login prompt. See rig.py for what a rig
+boot, and waits for it to reach its login prompt, or, for a guest printing none
+to serial, as Windows does, to answer over SSH. See rig.py for what a rig
 describes.
 
 Retargetable: false
@@ -57,8 +58,8 @@ def main(args, cijoe):
         rig.stop_servers(cijoe, topo, guest.guest_path)
         return err
 
-    if not guest.is_up(timeout=args.timeout):
-        log.error("the guest did not reach its login prompt")
+    if not guest.is_up(timeout=args.timeout) and cijoe.run("hostname")[0]:
+        log.error("the guest reached no login prompt and does not answer over SSH")
         return errno.ETIMEDOUT
 
     return 0

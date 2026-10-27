@@ -7,6 +7,7 @@ need none either. Real rigs are booted by the qualify workflows.
 
 import json
 import os
+import shlex
 import socket
 import stat
 import subprocess
@@ -602,12 +603,21 @@ class Recorder:
         return self.reply
 
 
+@pytest.mark.parametrize("name", ["devbind", "iommu"])
+def test_tool_runs_from_the_package_dependencies(name):
+    ran = subprocess.run(
+        shlex.split(rig.tool(name)) + ["--version"], capture_output=True, text=True
+    )
+    assert ran.returncode == 0, ran.stderr
+    assert "0.4.0" in ran.stdout + ran.stderr
+
+
 def test_bind_vfio_binds_with_devbind_what_is_not_on_vfio(tmp_path):
     sysfs = fake_sysfs(tmp_path)
     cijoe = Recorder()
 
     assert rig.bind_vfio(cijoe, "0000:02:00.0", sysfs) == ["0000:02:00.0"]
-    assert cijoe.commands == ["devbind --bind vfio-pci --device 0000:02:00.0"]
+    assert cijoe.commands == [f"{rig.tool('devbind')} --bind vfio-pci --device 0000:02:00.0"]
     assert rig.bind_vfio(Recorder(err=1), "0000:02:00.0", sysfs) is None
 
 
@@ -644,7 +654,7 @@ def test_iommu_on_from_iommu_show(mode, groups, ok):
     cijoe = Recorder(shown)
 
     assert (rig.iommu_problems(cijoe) == []) is ok
-    assert cijoe.commands == ["iommu show"]
+    assert cijoe.commands == [f"{rig.tool('iommu')} show"]
 
 
 @pytest.mark.parametrize(
@@ -692,3 +702,68 @@ def test_vfio_pci_device_args_and_plug(tmp_path):
     fake = FakeQMP(tmp_path / "qmp.sock")
     assert rig.plug(tmp_path, topo, "late") == 0
     assert fake.executed()[0]["arguments"]["driver"] == "vfio-pci"
+
+
+@pytest.mark.parametrize(
+    "serial,ssh_err,expect", [(True, 1, 0), (False, 0, 0), (False, 1, 110)]
+)
+def test_guest_start_takes_ssh_for_a_guest_without_a_serial_login(
+    tmp_path, monkeypatch, serial, ssh_err, expect
+):
+    import argparse
+
+    import rig_guest_start
+
+    class Guest:
+        def __init__(self, cijoe, config, name):
+            self.guest_config, self.guest_path = {}, tmp_path
+
+        def start(self, extra_args):
+            return 0
+
+        def is_up(self, timeout):
+            return serial
+
+    class Ssh:
+        config = argparse.Namespace(options={})
+
+        def run(self, cmd):
+            return ssh_err, None
+
+    monkeypatch.setattr(rig_guest_start, "Guest", Guest)
+    args = argparse.Namespace(guest_name="g", timeout=1)
+    assert rig_guest_start.main(args, Ssh()) == expect
+
+
+# As a FreeBSD 14.4 guest on storage-node-passthru printed them
+FREEBSD_NVME = """\
+hostb0@pci0:0:0:0:\tclass=0x060000 rev=0x00 hdr=0x00 vendor=0x8086 device=0x29c0
+pcib1@pci0:0:2:0:\tclass=0x060400 rev=0x00 hdr=0x01 vendor=0x1b36 device=0x000c
+nvme0@pci0:1:0:0:\tclass=0x010802 rev=0x00 hdr=0x00 vendor=0x144d device=0xa80c
+nvme1@pci0:10:0:0:\tclass=0x010802 rev=0x02 hdr=0x00 vendor=0x1b36 device=0x0010
+scbus2 on ahcich2 bus 0:
+<QEMU QEMU DVD-ROM 2.5+>           at scbus2 target 0 lun 0 (pass0,cd0)
+<>                                 at scbus2 target -1 lun ffffffff ()
+scbus6 on nvme0 bus 0:
+<Samsung SSD 990 PRO 2TB 5B2QJXD7>  at scbus6 target 0 lun 1 (pass1,nda0)
+<>                                 at scbus6 target -1 lun ffffffff ()
+scbus-1 on xpt0 bus 0:
+<>                                 at scbus-1 target -1 lun ffffffff (xpt0)
+ nvme0: Samsung SSD 990 PRO 2TB
+    nvme0ns1 (1907729MB)
+ nvme1: QEMU NVMe Ctrl
+    nvme1ns1 (1024MB)
+"""
+
+
+def test_guest_nvme_freebsd_by_bdf():
+    assert rig.guest_nvme_freebsd(FREEBSD_NVME) == {
+        "0000:01:00.0": {
+            "controller": "nvme0",
+            "namespaces": [{"nsid": 1, "cdev": "/dev/nvme0ns1", "bdev": "/dev/nda0"}],
+        },
+        "0000:0a:00.0": {
+            "controller": "nvme1",
+            "namespaces": [{"nsid": 1, "cdev": "/dev/nvme1ns1"}],
+        },
+    }

@@ -82,6 +82,7 @@ import shlex
 import signal
 import socket as sockets
 import stat
+import sys
 import time
 from pathlib import Path
 
@@ -578,6 +579,48 @@ def guest_nvme(listing: str):
     }
 
 
+# FreeBSD's: controllers with their BDFs, the CAM bus each controller's
+# namespaces are disks on, and the namespaces; run by csh as well as sh
+GUEST_NVME_FREEBSD = "pciconf -l; camcontrol devlist -v; nvmecontrol devlist"
+
+
+def guest_nvme_freebsd(listing: str):
+    """The guest's NVMe controllers by BDF, as guest_nvme() gives them, from the
+    output of GUEST_NVME_FREEBSD: a namespace's 'cdev' is its nvme<c>ns<n>, its
+    'bdev' the nda disk CAM made of it, absent where the guest uses nvd"""
+
+    bdfs, disks, namespaces = {}, {}, []
+    scbus = None
+    for line in listing.splitlines():
+        pci = re.match(r"(nvme\d+)@pci(\d+):(\d+):(\d+):(\d+):", line)
+        bus = re.match(r"(scbus\d+) on (\w+) bus", line)
+        disk = re.search(r" lun (\d+) \(.*\b(nda\d+)\b", line)
+        ns = re.match(r"\s+((nvme\d+)ns(\d+))\b", line)
+        if pci:
+            ctrl, dom, b, d, f = pci.groups()
+            bdfs[ctrl] = f"{int(dom):04x}:{int(b):02x}:{int(d):02x}.{int(f)}"
+        elif bus:
+            scbus = bus.group(2)
+        elif disk and scbus:
+            disks[(scbus, int(disk.group(1)))] = f"/dev/{disk.group(2)}"
+        elif ns:
+            namespaces.append((ns.group(2), int(ns.group(3)), f"/dev/{ns.group(1)}"))
+
+    ctrls = {}
+    for ctrl, nsid, cdev in namespaces:
+        if ctrl not in bdfs:
+            continue
+        entry = ctrls.setdefault(bdfs[ctrl], {"controller": ctrl, "namespaces": []})
+        found = {"nsid": nsid, "cdev": cdev}
+        if (ctrl, nsid) in disks:
+            found["bdev"] = disks[(ctrl, nsid)]
+        entry["namespaces"].append(found)
+    for ctrl, bdf in bdfs.items():
+        ctrls.setdefault(bdf, {"controller": ctrl, "namespaces": []})
+
+    return ctrls
+
+
 def pci_addresses(guest_path: Path):
     """The BDF of each device of the running guest, by its id, as QEMU reports it
     once the guest has numbered the buses"""
@@ -678,6 +721,13 @@ def group_members(host: str, sysfs=Path("/sys")):
     return members
 
 
+def tool(name: str):
+    """The command running 'devbind' or 'iommu' from this package's own
+    dependencies, so a host passes devices through with neither on its PATH"""
+
+    return f"{shlex.quote(sys.executable)} -W ignore::RuntimeWarning -m {name}.{name}"
+
+
 def bind_vfio(cijoe, host: str, sysfs=Path("/sys")):
     """Bind 'host' and the other endpoints in its IOMMU group to vfio-pci with
     devbind; the devices it rebound, or None when devbind failed"""
@@ -687,7 +737,7 @@ def bind_vfio(cijoe, host: str, sysfs=Path("/sys")):
         driver = sysfs / "bus" / "pci" / "devices" / member / "driver"
         if driver.exists() and driver.resolve().name == "vfio-pci":
             continue
-        err, _ = cijoe.run_local(f"devbind --bind vfio-pci --device {member}")
+        err, _ = cijoe.run_local(f"{tool('devbind')} --bind vfio-pci --device {member}")
         if err:
             log.error(f"devbind could not bind {member} to vfio-pci: err({err})")
             return None
@@ -721,7 +771,7 @@ def iommu_problems(cijoe):
     so 'unset' is the kernel's default, which translates; vfio gives a device
     its own domain in any mode but the 'off' ones."""
 
-    err, state = cijoe.run_local("iommu show")
+    err, state = cijoe.run_local(f"{tool('iommu')} show")
     if err:
         return [f"'iommu show' failed: err({err})"]
     shown = state.output()
