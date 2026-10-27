@@ -413,3 +413,16 @@ def test_storage_node_keeps_its_bdfs():
 
     ports = [a.split(",")[1] for a in topo.port_args() if a.startswith("pcie-root")]
     assert ports == [f"id=nvme{i}_rp" for i in range(11)]
+
+
+def test_compute_node_has_its_nvme_on_the_switchs_first_port():
+    path = Path(__file__).parents[2] / "rigs" / "compute-node-emulated.toml"
+    topo = Topology(tomllib.loads(path.read_text())["rig"])
+
+    assert [a for a in topo.port_args() if a != "-device"][:3] == [
+        "pcie-root-port,id=p2p_rp,chassis=1,slot=0",
+        "x3130-upstream,id=p2p_up,bus=p2p_rp",
+        "xio3130-downstream,id=p2p_dn0,bus=p2p_up,chassis=2,slot=0",
+    ]
+    assert topo.device("nvme0")["port"] == "p2p_dn0"
+    assert not topo.device("gpu0").get("boot", True)

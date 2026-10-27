@@ -1,0 +1,29 @@
+# compute-node-emulated: an emulated GPU and an NVMe controller behind one PCIe
+# switch, for I/O between the controller and the GPU's VRAM. The guest kernel
+# allows peer-to-peer DMA between devices behind one switch only. The switch is
+# on the first root port, so the controller is at 0000:03:00.0, which
+# consumers' device lists name.
+#
+# The GPU is rocjitsu, plugged after boot by 'rig_device_plug', since amdgpu
+# must be loaded with its options before the GPU appears. See
+# cijoe/scripts/rig.py for the format.
+
+[rig.pcie.switches.p2p]
+downstream_ports = 2
+
+[[rig.devices]]
+name = "nvme0"
+provider = "qemu"
+port = "p2p_dn0"
+device = "nvme,serial=beef00ff,mdts=7,ioeventfd=on"
+drives = ["id=nvme0n1,file={{ local.env.HOME }}/guests/compute-node-emulated/nvme0n1.img,format=raw,if=none,discard=on,detect-zeroes=unmap,cache=none,aio=io_uring"]
+children = ["nvme-ns,drive=nvme0n1,nsid=1,logical_block_size=4096,physical_block_size=4096"]
+image = {path = "{{ local.env.HOME }}/guests/compute-node-emulated/nvme0n1.img", size = "8G"}
+
+[[rig.devices]]
+name = "gpu0"
+provider = "vfio-user"
+port = "p2p_dn1"
+boot = false
+socket = "{{ local.env.HOME }}/run/vfio-user-rocjitsu.sock"
+server = "/opt/rocjitsu/bin/rocjitsu --config /opt/rocjitsu/share/configs/gfx1250_mi455x_xnvme_ci.json --vfio-socket {socket}"
