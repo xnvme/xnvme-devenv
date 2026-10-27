@@ -1,0 +1,47 @@
+---
+doc: |
+  Qualify an xnvme-devenv guest on the storage-node-passthru rig
+
+  Boots the derived guest with the machine's own NVMe drive passed through,
+  which rig_guest_start binds to vfio-pci, and checks that the guest drives it:
+  one controller, on its root port at 01:00.0, not QEMU's (vendor 0x1b36), with
+  a namespace. Needs a machine config giving the drive's host BDF, see
+  rigs/storage-node-passthru.toml.
+
+steps:
+- name: guest_kill
+  uses: rig_guest_kill
+  with:
+    guest_name: qualify
+
+- name: guest_initialize
+  uses: qemu.guest_initialize
+  with:
+    guest_name: qualify
+    system_image_name: xnvme-devenv-guest-x86_64
+
+- name: guest_start
+  uses: rig_guest_start
+  with:
+    guest_name: qualify
+
+- name: root_unlock
+  uses: root_unlock
+
+- name: rig_devices
+  uses: rig_devices
+  with:
+    guest_name: qualify
+    expect_controllers: 1
+
+- name: test_drive
+  run: |
+    ls -d /sys/bus/pci/devices/0000:01:00.0/nvme/nvme0
+    test "$(cat /sys/bus/pci/devices/0000:01:00.0/vendor)" != 0x1b36
+    nvme id-ctrl /dev/nvme0
+    ls /dev/ng0n1
+
+- name: guest_shutdown
+  uses: rig_guest_kill
+  with:
+    guest_name: qualify

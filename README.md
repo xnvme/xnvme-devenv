@@ -61,7 +61,9 @@ QEMU matrix tests, one per command set and format, each at a fixed BDF.
 `fabrics-node-emulated` has the RDMA NIC alone, its far end an NVMe/RDMA
 target. `storage-node-passthru` passes the machine's own NVMe drive through
 with vfio-pci; the machine's config gives its BDF, and the host container
-needs `--privileged --ulimit memlock=-1`.
+needs `--privileged --ulimit memlock=-1`. CI has no drive to pass through, so
+`make qualify-passthru MACHINE=<file>` qualifies the rig on a machine that has
+one.
 `make qualify-cluster RIG=...` takes rig names or paths to rig files. Each is
 one more config, and later ones win, so a file of your own can change one
 detail of a rig without copying it.

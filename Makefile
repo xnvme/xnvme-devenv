@@ -17,7 +17,7 @@ CIJOE_CONFIGS = --config ../lock.toml --config configs/images.toml
 RIG ?= cluster-node-emulated
 RIG_CONFIGS = $(foreach r,$(RIG),--config $(if $(findstring /,$(r)),$(abspath $(r)),../rigs/$(r).toml))
 
-.PHONY: host ci logs derive qualify-cluster qualify-storage qualify-fabrics test clean
+.PHONY: host ci logs derive qualify-cluster qualify-storage qualify-fabrics qualify-passthru test clean
 
 host:
 	cd cijoe && DOCKER="$(DOCKER)" HOST_IMAGE="$(HOST_IMAGE)" cijoe workflows/host.yaml --monitor \
@@ -59,6 +59,13 @@ qualify-storage:
 # The fabrics-node-emulated rig's NVMe/RDMA target answers the guest's initiator
 qualify-fabrics:
 	cd cijoe && cijoe workflows/qualify-fabrics.yaml --monitor $(CIJOE_CONFIGS) --config ../rigs/fabrics-node-emulated.toml --output $(CIJOE_OUTPUT)-qualify-fabrics
+
+# The storage-node-passthru rig drives the machine's own NVMe; MACHINE is the
+# machine's config, giving the drive's host BDF. Run where the host container
+# has /dev/vfio and unlimited memlock: '--privileged --ulimit memlock=-1'.
+qualify-passthru:
+	$(if $(MACHINE),,$(error MACHINE must name the machine's config))
+	cd cijoe && cijoe workflows/qualify-passthru.yaml --monitor $(CIJOE_CONFIGS) --config ../rigs/storage-node-passthru.toml --config $(abspath $(MACHINE)) --output $(CIJOE_OUTPUT)-qualify-passthru
 
 clean:
 	rm -rf host/debs cijoe/$(CIJOE_OUTPUT)-* .work
