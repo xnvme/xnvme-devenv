@@ -61,8 +61,8 @@ A device of provider 'vfio-pci' is the host's own, passed through: 'host' is
 its BDF on the host, and 'props' as for 'vfio-user'. Before the guest starts,
 it and the other endpoints in its IOMMU group are bound to vfio-pci with
 devbind, which takes them from the host, so a device whose namespaces the host
-has mounted is refused. The IOMMU mode, as 'iommu show' reports it, must be
-'pt' or 'strict', and memlock unlimited. A rig leaves 'host' to the machine's
+has mounted is refused. The IOMMU must be on, with groups and not in one of
+the 'off' modes of 'iommu show', and memlock unlimited. A rig leaves 'host' to the machine's
 own config, '[rig.devices.<name>] host = "0000:02:00.0"'.
 
 A device with 'boot = false' is not present at boot: its port and drives are,
@@ -81,6 +81,7 @@ import resource
 import shlex
 import signal
 import socket as sockets
+import stat
 import time
 from pathlib import Path
 
@@ -622,7 +623,8 @@ def guest_devices(topo: Topology, addresses: dict, nvme: dict):
 def passthru_problems(dev: dict, sysfs=Path("/sys"), mounts="/proc/mounts"):
     """What keeps the host device of a 'vfio-pci' device from being passed
     through, as messages; none when it can be. A device whose NVMe namespaces
-    are mounted on the host is refused, as it is a drive the host is using."""
+    are mounted on the host, or held by md, dm or the like, is refused, as it
+    is a drive the host is using."""
 
     host = dev.get("host", "")
     pci = sysfs / "bus" / "pci" / "devices" / host
@@ -648,6 +650,12 @@ def passthru_problems(dev: dict, sysfs=Path("/sys"), mounts="/proc/mounts"):
         ):
             if any(m.startswith(f"/dev/{ns.name}") for m in mounted):
                 problems.append(f"{dev['name']}: {member} has /dev/{ns.name} mounted")
+            holders = [h.name for h in ns.glob("holders/*")]
+            holders += [h.name for h in ns.glob(f"{ns.name}p*/holders/*")]
+            if holders:
+                problems.append(
+                    f"{dev['name']}: {member} has /dev/{ns.name} held by {', '.join(holders)}"
+                )
 
     return problems
 
@@ -688,17 +696,40 @@ def bind_vfio(cijoe, host: str, sysfs=Path("/sys")):
     return rebound
 
 
+def vfio_node(host: str, sysfs=Path("/sys"), dev=Path("/dev")):
+    """The vfio group node QEMU opens for 'host', made from sysfs when missing,
+    as it is in a container started before the group was bound: a container's
+    /dev is populated once, at its start; None when the group has no vfio node"""
+
+    group = (sysfs / "bus" / "pci" / "devices" / host / "iommu_group").resolve().name
+    node = dev / "vfio" / group
+    if node.exists():
+        return node
+    numbers = sysfs / "class" / "vfio" / group / "dev"
+    if not numbers.exists():
+        return None
+    major, minor = (int(n) for n in numbers.read_text().strip().split(":"))
+    node.parent.mkdir(parents=True, exist_ok=True)
+    os.mknod(node, 0o660 | stat.S_IFCHR, os.makedev(major, minor))
+
+    return node
+
+
 def iommu_problems(cijoe):
     """What keeps the host's IOMMU from passing devices through, as messages,
-    from 'iommu show'; none when its mode is 'pt' or 'strict'"""
+    from 'iommu show'. Its mode is only what the kernel command line asks for,
+    so 'unset' is the kernel's default, which translates; vfio gives a device
+    its own domain in any mode but the 'off' ones."""
 
     err, state = cijoe.run_local("iommu show")
     if err:
         return [f"'iommu show' failed: err({err})"]
-    match = re.search(r"^mode:\s*(\S+)", state.output(), re.M)
+    shown = state.output()
+    match = re.search(r"^mode:\s*(\S+)", shown, re.M)
     mode = match.group(1) if match else None
-    if mode not in ("pt", "strict"):
-        return [f"the IOMMU mode is {mode}; passthrough needs 'iommu pt' and a reboot"]
+    groups = re.search(r"^groups:\s*([1-9]\d*) group", shown, re.M)
+    if not groups or (mode or "").startswith("off"):
+        return [f"the IOMMU is off (mode {mode}); passthrough needs 'iommu pt' and a reboot"]
 
     return []
 
@@ -727,5 +758,8 @@ def prepare_passthru(cijoe, topo: Topology):
             return errno.EPERM
         for member in rebound:
             log.info(f"{dev['name']}: bound {member} to vfio-pci")
+        if vfio_node(dev["host"]) is None:
+            log.error(f"{dev['name']}: {dev['host']} has no vfio group node")
+            return errno.ENODEV
 
     return 0

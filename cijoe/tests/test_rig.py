@@ -6,7 +6,9 @@ need none either. Real rigs are booted by the qualify workflows.
 """
 
 import json
+import os
 import socket
+import stat
 import subprocess
 import sys
 import threading
@@ -609,12 +611,36 @@ def test_bind_vfio_binds_with_devbind_what_is_not_on_vfio(tmp_path):
     assert rig.bind_vfio(Recorder(err=1), "0000:02:00.0", sysfs) is None
 
 
+def test_vfio_node_is_made_from_sysfs_when_missing(tmp_path, monkeypatch):
+    sysfs = fake_sysfs(tmp_path / "sys")
+    made = []
+    monkeypatch.setattr(rig.os, "mknod", lambda *args: made.append(args))
+
+    assert rig.vfio_node("0000:02:00.0", sysfs, tmp_path / "dev") is None
+    (sysfs / "class" / "vfio" / "5").mkdir(parents=True)
+    (sysfs / "class" / "vfio" / "5" / "dev").write_text("236:1\n")
+    node = tmp_path / "dev" / "vfio" / "5"
+    assert rig.vfio_node("0000:02:00.0", sysfs, tmp_path / "dev") == node
+    assert made == [(node, 0o660 | stat.S_IFCHR, os.makedev(236, 1))]
+
+    node.write_text("")
+    assert rig.vfio_node("0000:02:00.0", sysfs, tmp_path / "dev") == node
+    assert len(made) == 1
+
+
 @pytest.mark.parametrize(
-    "mode,ok",
-    [("pt", True), ("strict", True), ("off-for-vfio", False), ("unset", False)],
+    "mode,groups,ok",
+    [
+        ("pt", "groups:    40 group(s) at /sys/kernel/iommu_groups\n", True),
+        ("strict", "groups:    40 group(s) at /sys/kernel/iommu_groups\n", True),
+        ("unset", "groups:    75 group(s) at /sys/kernel/iommu_groups\n", True),
+        ("unset", "", False),
+        ("off-for-vfio", "groups:    40 group(s) at /sys/kernel/iommu_groups\n", False),
+        ("off-for-uio", "", False),
+    ],
 )
-def test_iommu_mode_from_iommu_show(mode, ok):
-    shown = f"cmdline:   BOOT_IMAGE=/vmlinuz ro\nmode:      {mode}\ngroups:    40 group(s)\n"
+def test_iommu_on_from_iommu_show(mode, groups, ok):
+    shown = f"cmdline:   BOOT_IMAGE=/vmlinuz ro\nmode:      {mode}\n{groups}"
     cijoe = Recorder(shown)
 
     assert (rig.iommu_problems(cijoe) == []) is ok
@@ -622,18 +648,23 @@ def test_iommu_mode_from_iommu_show(mode, ok):
 
 
 @pytest.mark.parametrize(
-    "host,mounted,expect",
+    "host,mounted,holder,expect",
     [
-        ("0000:02:00.0", "", []),
-        ("0000:02:00.0", "/dev/nvme3n1p2 / ext4 rw 0 0", ["has /dev/nvme3n1 mounted"]),
-        ("02:00.0", "", ["is not a BDF"]),
-        ("0000:09:00.0", "", ["no PCI device"]),
-        ("0000:03:00.0", "", ["in no IOMMU group"]),
+        ("0000:02:00.0", "", None, []),
+        ("0000:02:00.0", "/dev/nvme3n1p2 / ext4 rw 0 0", None, ["has /dev/nvme3n1 mounted"]),
+        ("0000:02:00.0", "", "holders/md127", ["held by md127"]),
+        ("0000:02:00.0", "", "nvme3n1p1/holders/dm-0", ["held by dm-0"]),
+        ("02:00.0", "", None, ["is not a BDF"]),
+        ("0000:09:00.0", "", None, ["no PCI device"]),
+        ("0000:03:00.0", "", None, ["in no IOMMU group"]),
     ],
-    ids=["ok", "mounted", "not-a-bdf", "missing", "no-iommu"],
+    ids=["ok", "mounted", "md", "dm-on-partition", "not-a-bdf", "missing", "no-iommu"],
 )
-def test_passthru_problems(tmp_path, host, mounted, expect):
+def test_passthru_problems(tmp_path, host, mounted, holder, expect):
     sysfs = fake_sysfs(tmp_path / "sys")
+    if holder:
+        ns = sysfs / "devices" / "0000:02:00.0" / "nvme" / "nvme3" / "nvme3n1"
+        (ns / holder).mkdir(parents=True)
     mounts = tmp_path / "mounts"
     mounts.write_text(mounted + "\n")
 
