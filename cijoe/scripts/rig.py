@@ -57,6 +57,14 @@ for as long as the guest does, from before the guest starts to after it is
 killed, whether or not its device is plugged in, since one server may need
 another's memory, as the NIC's does the GPU's VRAM.
 
+A device of provider 'vfio-pci' is the host's own, passed through: 'host' is
+its BDF on the host, and 'props' as for 'vfio-user'. Before the guest starts,
+it and the other endpoints in its IOMMU group are bound to vfio-pci with
+devbind, which takes them from the host, so a device whose namespaces the host
+has mounted is refused. The IOMMU mode, as 'iommu show' reports it, must be
+'pt' or 'strict', and memlock unlimited. A rig leaves 'host' to the machine's
+own config, '[rig.devices.<name>] host = "0000:02:00.0"'.
+
 A device with 'boot = false' is not present at boot: its port and drives are,
 and 'plug()' adds it over QMP, as 'unplug()' removes it. Its children are
 plugged after it, onto its bus, which works only where that bus takes
@@ -69,13 +77,14 @@ import json
 import logging as log
 import os
 import re
+import resource
 import shlex
 import signal
 import socket as sockets
 import time
 from pathlib import Path
 
-PROVIDERS = ("qemu", "vfio-user")
+PROVIDERS = ("qemu", "vfio-user", "vfio-pci")
 
 
 class Topology:
@@ -188,8 +197,17 @@ class Topology:
 
         return specs
 
-    def vfio_user_props(self, dev: dict):
-        """The QMP/JSON properties of a 'vfio-user' device"""
+    def json_props(self, dev: dict):
+        """The QMP/JSON properties of a 'vfio-user' or 'vfio-pci' device"""
+
+        if dev["provider"] == "vfio-pci":
+            return {
+                **dev.get("props", {}),
+                "driver": "vfio-pci",
+                "id": dev["name"],
+                "bus": self.bus(dev),
+                "host": dev["host"],
+            }
 
         props = {"rombar": 0, **dev.get("props", {})}
         props.update(
@@ -203,6 +221,11 @@ class Topology:
 
         return props
 
+    def passed_through(self):
+        """The devices passed through from the host, in the order they are listed"""
+
+        return [dev for dev in self.devices if dev["provider"] == "vfio-pci"]
+
     def boot_device_args(self):
         """The '-device' arguments of the devices present at boot, shell-quoted, as
         qemu is run through a shell"""
@@ -215,7 +238,7 @@ class Topology:
                 for spec in self.qemu_device_specs(dev):
                     args += ["-device", shlex.quote(spec)]
             else:
-                args += ["-device", shlex.quote(json.dumps(self.vfio_user_props(dev)))]
+                args += ["-device", shlex.quote(json.dumps(self.json_props(dev)))]
 
         return args
 
@@ -464,7 +487,7 @@ def plug(guest_path: Path, topo: Topology, name: str):
                         qmp.execute("device_del", {"id": name})
                     return errno.EIO
         else:
-            reply = qmp.execute("device_add", topo.vfio_user_props(dev))
+            reply = qmp.execute("device_add", topo.json_props(dev))
             if "error" in reply:
                 log.error(f"device_add {name}: {reply['error']}")
                 return errno.EIO
@@ -594,3 +617,115 @@ def guest_devices(topo: Topology, addresses: dict, nvme: dict):
         report[dev["name"]] = entry
 
     return report
+
+
+def passthru_problems(dev: dict, sysfs=Path("/sys"), mounts="/proc/mounts"):
+    """What keeps the host device of a 'vfio-pci' device from being passed
+    through, as messages; none when it can be. A device whose NVMe namespaces
+    are mounted on the host is refused, as it is a drive the host is using."""
+
+    host = dev.get("host", "")
+    pci = sysfs / "bus" / "pci" / "devices" / host
+    if not re.fullmatch(r"[0-9a-f]{4}:[0-9a-f]{2}:[0-9a-f]{2}\.[0-7]", host):
+        return [f"{dev['name']}: 'host' is not a BDF: {host!r}"]
+    if not pci.exists():
+        return [f"{dev['name']}: no PCI device {host} on the host"]
+    if not (pci / "iommu_group").exists():
+        return [f"{dev['name']}: {host} is in no IOMMU group; is the IOMMU on?"]
+
+    problems = []
+    try:
+        mounted = {
+            line.split()[0]
+            for line in Path(mounts).read_text().split("\n")
+            if line.strip()
+        }
+    except OSError:
+        mounted = set()
+    for member in group_members(host, sysfs):
+        for ns in (sysfs / "bus" / "pci" / "devices" / member).glob(
+            "nvme/nvme*/nvme*n*"
+        ):
+            if any(m.startswith(f"/dev/{ns.name}") for m in mounted):
+                problems.append(f"{dev['name']}: {member} has /dev/{ns.name} mounted")
+
+    return problems
+
+
+def group_members(host: str, sysfs=Path("/sys")):
+    """The endpoints in the IOMMU group of 'host', all of which vfio needs; the
+    group's bridges stay with their driver"""
+
+    group = (sysfs / "bus" / "pci" / "devices" / host / "iommu_group").resolve()
+    members = []
+    for member in sorted((group / "devices").iterdir()):
+        cls = (
+            (member / "class").read_text().strip()
+            if (member / "class").exists()
+            else ""
+        )
+        if not cls.startswith("0x0604"):
+            members.append(member.name)
+
+    return members
+
+
+def bind_vfio(cijoe, host: str, sysfs=Path("/sys")):
+    """Bind 'host' and the other endpoints in its IOMMU group to vfio-pci with
+    devbind; the devices it rebound, or None when devbind failed"""
+
+    rebound = []
+    for member in group_members(host, sysfs):
+        driver = sysfs / "bus" / "pci" / "devices" / member / "driver"
+        if driver.exists() and driver.resolve().name == "vfio-pci":
+            continue
+        err, _ = cijoe.run_local(f"devbind --bind vfio-pci --device {member}")
+        if err:
+            log.error(f"devbind could not bind {member} to vfio-pci: err({err})")
+            return None
+        rebound.append(member)
+
+    return rebound
+
+
+def iommu_problems(cijoe):
+    """What keeps the host's IOMMU from passing devices through, as messages,
+    from 'iommu show'; none when its mode is 'pt' or 'strict'"""
+
+    err, state = cijoe.run_local("iommu show")
+    if err:
+        return [f"'iommu show' failed: err({err})"]
+    match = re.search(r"^mode:\s*(\S+)", state.output(), re.M)
+    mode = match.group(1) if match else None
+    if mode not in ("pt", "strict"):
+        return [f"the IOMMU mode is {mode}; passthrough needs 'iommu pt' and a reboot"]
+
+    return []
+
+
+def prepare_passthru(cijoe, topo: Topology):
+    """Bind the host devices of the rig's 'vfio-pci' devices to vfio-pci, after
+    checking that the IOMMU and memlock allow passing them through"""
+
+    devices = topo.passed_through()
+    if not devices:
+        return 0
+
+    problems = iommu_problems(cijoe)
+    problems += [p for dev in devices for p in passthru_problems(dev)]
+    # devbind warns below 64 MiB; vfio pins all of the guest's memory
+    if resource.getrlimit(resource.RLIMIT_MEMLOCK)[0] != resource.RLIM_INFINITY:
+        problems.append("memlock is limited; vfio pins all of the guest's memory")
+    for problem in problems:
+        log.error(problem)
+    if problems:
+        return errno.EINVAL
+
+    for dev in devices:
+        rebound = bind_vfio(cijoe, dev["host"])
+        if rebound is None:
+            return errno.EPERM
+        for member in rebound:
+            log.info(f"{dev['name']}: bound {member} to vfio-pci")
+
+    return 0

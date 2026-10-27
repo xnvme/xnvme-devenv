@@ -25,6 +25,8 @@ TOOLS = {
     "pipx": ["pipx", "--version"],
     "oras": ["oras", "version"],
     "mdadm": ["mdadm", "--version"],
+    "devbind": ["devbind", "--version"],
+    "iommu": ["iommu", "--version"],
     "vfu_kvssd": ["vfu_kvssd", "--version"],
     "rocjitsu": ["/opt/rocjitsu/bin/rocjitsu", "--version"],
     "rocjitsu-vram": ["test", "-x", "/opt/rocjitsu/bin/rocjitsu-vram"],
