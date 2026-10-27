@@ -7,7 +7,7 @@ Writes '[guest.devices.<device>]' for each of the rig's devices in the running
 guest, to 'guest-devices.toml' in the guest's path and in the step's output: its
 'labels', its 'bdf' as QEMU reports it, its 'transport' when it has one, and,
 for an NVMe controller, the 'controller' and 'namespaces', '{nsid, bdev, cdev}',
-the guest named. A consumer passes the file as one more config and builds its
+the guest named, a Linux or a FreeBSD guest. A consumer passes the file as one more config and builds its
 device list from it. Run it after the guest is up and root can log in, and
 again after a plug or unplug.
 
@@ -52,15 +52,18 @@ def main(args, cijoe):
         log.error(f"guest {guest_name} is not running")
         return errno.ENODEV
 
-    err, state = cijoe.run(rig.GUEST_NVME)
+    err, state = cijoe.run("uname -s")
+    freebsd = not err and "FreeBSD" in state.output()
+    err, state = cijoe.run(rig.GUEST_NVME_FREEBSD if freebsd else rig.GUEST_NVME)
     if err:
         log.error(f"listing the guest's NVMe devices failed: err({err})")
         return err
+    reader = rig.guest_nvme_freebsd if freebsd else rig.guest_nvme
 
     report = rig.guest_devices(
         rig.Topology.from_config(cijoe),
         rig.pci_addresses(guest.guest_path),
-        rig.guest_nvme(state.output()),
+        reader(state.output()),
     )
     config = {"guest": {"devices": report}}
     dict_to_tomlfile(config, Path(guest.guest_path) / "guest-devices.toml")

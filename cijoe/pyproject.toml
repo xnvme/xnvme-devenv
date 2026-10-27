@@ -5,8 +5,11 @@ description = "CIJOE environment for the xnvme-devenv derive and qualification"
 requires-python = ">=3.9"
 
 # As xNVMe pins it, so the scripts move between the two unchanged
+# devbind and iommu pass devices through, so a host needs neither installed
 dependencies = [
     "cijoe==0.9.61",
+    "devbind==0.4.0",
+    "iommu==0.4.0",
 ]
 
 [build-system]
