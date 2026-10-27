@@ -1,0 +1,79 @@
+---
+doc: |
+  Qualify an xnvme-devenv guest on the compute-node-emulated rig
+
+  Boots the derived guest on the compute-node-emulated rig, rocjitsu's GPU and
+  an NVMe drive behind one PCIe switch, then plugs the GPU, which udev brings
+  up with the amdgpu the image carries. Checks that the controller is at the
+  BDF consumers name, that io_uring moves data between the drive and a dma-buf
+  and between the drive and VRAM, and runs a GEMM on the GPU.
+
+steps:
+- name: host_check
+  uses: host_check
+
+- name: guest_kill
+  uses: rig_guest_kill
+  with:
+    guest_name: qualify
+
+- name: guest_initialize
+  uses: qemu.guest_initialize
+  with:
+    guest_name: qualify
+    system_image_name: xnvme-devenv-guest-x86_64
+
+- name: guest_start
+  uses: rig_guest_start
+  with:
+    guest_name: qualify
+
+- name: root_unlock
+  uses: root_unlock
+
+- name: gpu_plug
+  uses: rig_device_plug
+  with:
+    guest_name: qualify
+    device_name: gpu0
+
+- name: gpu_up
+  run: |
+    for _ in $(seq 36); do test -e /dev/kfd && ls /dev/dri | grep -q renderD && break; sleep 5; done
+    test -e /dev/kfd && ls /dev/dri | grep -q renderD || { dmesg | grep -i amdgpu | tail -40; false; }
+
+- name: rig_devices
+  uses: rig_devices
+  with:
+    guest_name: qualify
+    expect_controllers: 1
+
+- name: test_bdf
+  run: |
+    grep "^beef00ff *$" /sys/bus/pci/devices/0000:03:00.0/nvme/nvme*/serial
+
+# Our kernel, not the stock one, and its io_uring dma-buf support against the
+# emulated NVMe drive
+- name: test_kernel
+  run: |
+    uname -r | grep -x '{{ config.lock.kernel.release }}'
+    rocjitsu-guest-check iouring-dmabuf /dev/nvme0n1
+
+# HIP programs other than the guest checks, xNVMe's among them, rely on it
+- name: test_hip_env
+  run: |
+    printenv HSA_HOTSWAP_DISABLE | grep -x 1
+
+- name: test_gemm
+  run: |
+    rocjitsu-guest-check gemm
+
+- name: test_vram_io
+  run: |
+    rocjitsu-guest-check iouring-vram /dev/nvme0n1
+
+
+- name: guest_shutdown
+  uses: rig_guest_kill
+  with:
+    guest_name: qualify

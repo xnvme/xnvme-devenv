@@ -15,7 +15,8 @@ downstream_ports = 2
 provider = "qemu"
 labels = ["nvm", "scc", "write_zeroes", "log_health_ns", "idfy_cs"]
 port = "p2p_dn0"
-device = "nvme,serial=beef00ff,mdts=7,ioeventfd=on"
+device = "nvme,mdts=7,ioeventfd=on"
+serial = "beef00ff"
 drives = ["id=nvme0n1,file={{ local.env.HOME }}/guests/compute-node-emulated/nvme0n1.img,format=raw,if=none,discard=on,detect-zeroes=unmap,cache=none,aio=io_uring"]
 children = ["nvme-ns,drive=nvme0n1,nsid=1,logical_block_size=4096,physical_block_size=4096"]
 image = {path = "{{ local.env.HOME }}/guests/compute-node-emulated/nvme0n1.img", size = "8G"}

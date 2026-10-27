@@ -44,12 +44,17 @@ vfio-user. Each rig is a cijoe config under `rigs/`, shipped in the host
 container at `/opt/xnvme-devenv/rigs`. The `rig_*` scripts in `cijoe/scripts`
 start a guest with a rig, plug and unplug its devices, and kill it with its
 servers. `cijoe/scripts/rig.py` describes the format. The scripts install as
-the cijoe package `xnvme_devenv`, so a consumer running in the host container
-adds them to its cijoe with `pipx inject <venv> /opt/xnvme-devenv/cijoe` and
-uses them as `xnvme_devenv.rig_guest_start` and so on. Once the guest is up,
+the cijoe package `xnvme_devenv`, with the devbind and iommu they pass devices
+through with, so a consumer adds them to its cijoe with
+`pipx inject <venv> /opt/xnvme-devenv/cijoe` in the host container, or from a
+checkout on any other host, and uses them as `xnvme_devenv.rig_guest_start` and
+so on. The guest is the consumer's own, Linux, FreeBSD or Windows, as its
+config describes it; the rig adds its topology and devices. Once the guest is up,
 `rig_devices` writes `guest-devices.toml` beside it, as `[guest.devices]`: each
-device present, with its labels, its BDF and, for an NVMe controller, the names
-the guest gave it and its namespaces. A consumer passes it as one more config
+device present, with its labels, its BDF and, for an NVMe controller, its
+serial, the names the guest gave it and its namespaces. A controller is found
+by the serial the rig gives it, so the report does not depend on how the guest
+numbers its controllers. A consumer passes it as one more config
 and builds its device list from it, rather than keeping one of its own.
 
 A rig is named for the machine it stands in for and where its devices come
@@ -57,10 +62,11 @@ from, emulated or passed through. `cluster-node-emulated` has an emulated GPU,
 an emulated RDMA NIC and an NVMe drive behind one PCIe switch, and a release
 is qualified on it. `storage-node-emulated` has the NVMe controllers xNVMe's
 QEMU matrix tests, one per command set and format, each at a fixed BDF.
-`compute-node-emulated` has the GPU and one NVMe controller behind a switch.
+`compute-node-emulated` has the GPU and one NVMe controller behind a switch,
+and `make qualify-compute` qualifies it.
 `fabrics-node-emulated` has the RDMA NIC alone, its far end an NVMe/RDMA
 target. `storage-node-passthru` passes the machine's own NVMe drive through
-with vfio-pci; the machine's config gives its BDF, and the host container
+with vfio-pci; the machine's config gives its BDF and serial, and the host container
 needs `--privileged --ulimit memlock=-1`. CI has no drive to pass through, so
 `make qualify-passthru MACHINE=<file>` qualifies the rig on a machine that has
 one.
