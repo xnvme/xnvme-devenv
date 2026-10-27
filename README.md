@@ -36,6 +36,22 @@ The guest is for CI only and is never flashed onto a machine, so it may carry
 emulation settings that nosi must not. Machines that cannot reboot into a
 new kernel install the producers' DKMS debs on their own kernel instead.
 
+## Rigs
+
+A rig is what a guest boots with: its PCIe topology and the devices on it.
+QEMU emulates some devices, and the host's servers serve others over
+vfio-user. Each rig is a cijoe config under `rigs/`, shipped in the host
+container at `/opt/xnvme-devenv/rigs`. The `rig_*` scripts in `cijoe/scripts`
+start a guest with a rig, plug and unplug its devices, and kill it with its
+servers. `cijoe/scripts/rig.py` describes the format.
+
+A rig is named for the machine it stands in for and where its devices come
+from, emulated or passed through. `cluster-node-emulated` has an emulated GPU,
+an emulated RDMA NIC and an NVMe drive behind one PCIe switch, and a release
+is qualified on it. `make qualify RIG=...` takes rig names or paths to rig
+files. Each is one more config, and later ones win, so a file of your own can
+change one detail of a rig without copying it.
+
 ## Making a release
 
 `make host ci WORKDIR=<dir>` builds the host container, then derives and

@@ -9,6 +9,7 @@ RUN apt-get -qy update \
  && DEBIAN_FRONTEND=noninteractive apt-get -qy install --no-install-recommends /tmp/debs/*.deb mdadm \
  && rm -rf /tmp/debs /var/lib/apt/lists/*
 COPY cijoe/ /opt/xnvme-devenv/cijoe/
+COPY rigs/ /opt/xnvme-devenv/rigs/
 # An image without a tool the environments rely on is never published
 RUN cd /opt/xnvme-devenv/cijoe && cijoe workflows/host-check.yaml --config configs/host-check.toml --monitor --no-report --output /tmp/host-check \
  && rm -rf /tmp/host-check

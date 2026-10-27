@@ -29,6 +29,18 @@ jobs:
     - name: REUSE lint
       run: pipx run reuse lint
 
+  # The cijoe scripts' unit tests, which need neither the host container nor KVM
+  test:
+    runs-on: ubuntu-24.04
+    steps:
+    - uses: actions/checkout@v6
+    - name: Install cijoe and pytest
+      run: |
+        python3 -m venv .venv
+        .venv/bin/pip install -q ./cijoe pytest
+    - name: Run the unit tests
+      run: make test PYTEST="$PWD/.venv/bin/pytest"
+
   # 'make host ci' is the whole run, as it is locally; the runner's large /mnt
   # takes the images, and the job only adds publishing on a tag.
   release:
