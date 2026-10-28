@@ -1,0 +1,22 @@
+# The tools the host container must have, checked by core.tools_check on the
+# initiator, where cijoe runs: when the image is built, so an image without one
+# is never published, and when a release is qualified, so the report says what
+# the host had. A tool outside PATH is named by its path; one that prints no
+# version is asked to run 'true'.
+[tools.qemu-system-x86_64]
+[tools.qemu-img]
+[tools.qemu-nbd]
+[tools.cijoe]
+min = "0.9.64"
+[tools.pipx]
+[tools.oras]
+version = "oras version"
+[tools.mdadm]
+[tools.vfu_kvssd]
+[tools."/opt/rocjitsu/bin/rocjitsu"]
+[tools."/opt/rocjitsu/bin/rocjitsu-vram"]
+version = "true"
+[tools."/opt/rocjitsu/bin/rj-ip-discovery"]
+version = "true"
+[tools."/opt/rocm-ernic/bin/rocm-ernic"]
+version = "/opt/rocm-ernic/bin/rocm-ernic --help"

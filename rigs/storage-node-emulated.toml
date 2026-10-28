@@ -37,7 +37,7 @@ socket = "{{ local.env.HOME }}/run/vfu_kvssd.sock"
 server = "env VFU_KVSSD_TRACE=1 /usr/bin/vfu_kvssd -s {socket}"
 serial = "VFUKVSSD000000000000"
 
-# nvme3: NVM, for the fabrics tests
+# nvme3: NVM, for the NVMe over TCP tests
 [rig.devices.nvme3]
 provider = "qemu"
 labels = ["nvm", "scc", "write_zeroes", "log_health_ns", "idfy_cs"]

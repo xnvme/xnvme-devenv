@@ -1,0 +1,99 @@
+---
+doc: |
+  Qualify an xnvme-devenv guest on the storage-node-emulated rig, over TCP
+
+  Boots the derived guest on the rig, as qualify-pcie does, and exports nvme3,
+  found in the facts by its serial, through the kernel's nvmet-tcp on
+  127.0.0.1:4420, as xNVMe's tcp-linux tests do. Discovers it, connects to it,
+  writes through the TCP namespace and reads the same data back through the
+  PCIe one. The export has an NQN of its own, so the guest does not take it for
+  another path to nvme3's own subsystem.
+
+  Then what xNVMe's tcp-spdk tests need of the guest, without SPDK itself,
+  which is xNVMe's to build and test: hugepages reserved and mounted, nvme1,
+  which xNVMe exports through SPDK, handed to vfio-pci in an IOMMU group of its
+  own and given back to the kernel, and uio_pci_generic for a guest without an
+  IOMMU.
+
+steps:
+- name: guest_kill
+  uses: rig_guest_kill
+  with:
+    guest_name: qualify
+
+- name: guest_initialize
+  uses: qemu.guest_initialize
+  with:
+    guest_name: qualify
+    system_image_name: xnvme-devenv-guest-x86_64
+
+- name: guest_start
+  uses: rig_guest_start
+  with:
+    guest_name: qualify
+
+- name: root_unlock
+  uses: root_unlock
+
+- name: facts
+  uses: core.facts_gather
+  with:
+    sections: os,nvme
+
+# nvme3's namespace, exported by the kernel's NVMe target over TCP
+- name: target_start
+  run: |
+    modprobe nvmet
+    modprobe nvmet-tcp
+    mountpoint -q /sys/kernel/config || mount -t configfs none /sys/kernel/config
+    mkdir -p /sys/kernel/config/nvmet/subsystems/{{ config.qualify_tcp.subnqn }}/namespaces/1
+    echo 1 > /sys/kernel/config/nvmet/subsystems/{{ config.qualify_tcp.subnqn }}/attr_allow_any_host
+    echo -n {% for c in target.nvme.values() if c.serial == config.rig.devices.nvme3.serial %}{{ c.namespaces[0].bdev }}{% endfor %} > /sys/kernel/config/nvmet/subsystems/{{ config.qualify_tcp.subnqn }}/namespaces/1/device_path
+    echo 1 > /sys/kernel/config/nvmet/subsystems/{{ config.qualify_tcp.subnqn }}/namespaces/1/enable
+    mkdir -p /sys/kernel/config/nvmet/ports/1
+    echo 127.0.0.1 > /sys/kernel/config/nvmet/ports/1/addr_traddr
+    echo tcp > /sys/kernel/config/nvmet/ports/1/addr_trtype
+    echo 4420 > /sys/kernel/config/nvmet/ports/1/addr_trsvcid
+    echo ipv4 > /sys/kernel/config/nvmet/ports/1/addr_adrfam
+    ln -s /sys/kernel/config/nvmet/subsystems/{{ config.qualify_tcp.subnqn }} /sys/kernel/config/nvmet/ports/1/subsystems/{{ config.qualify_tcp.subnqn }}
+
+- name: test_discover_and_connect
+  run: |
+    modprobe nvme-tcp
+    nvme discover -t tcp -a 127.0.0.1 -s 4420 | grep {{ config.qualify_tcp.subnqn }}
+    nvme connect -t tcp -a 127.0.0.1 -s 4420 -n {{ config.qualify_tcp.subnqn }}
+    sh -c 'for s in /sys/class/nvme-subsystem/*; do grep -qx {{ config.qualify_tcp.subnqn }} $s/subsysnqn && ls -d $s/nvme*n* && exit 0; done; exit 1'
+
+# A random MiB through TCP, read back through PCIe
+- name: test_io
+  run: |
+    dd if=/dev/urandom of=/tmp/pattern bs=4096 count=256
+    sh -c 'for s in /sys/class/nvme-subsystem/*; do grep -qx {{ config.qualify_tcp.subnqn }} $s/subsysnqn && dd if=/tmp/pattern of=/dev/$(basename $(ls -d $s/nvme*n* | head -1)) bs=4096 count=256 oflag=direct && exit 0; done; exit 1'
+    cmp -n 1048576 /tmp/pattern {% for c in target.nvme.values() if c.serial == config.rig.devices.nvme3.serial %}{{ c.namespaces[0].bdev }}{% endfor %}
+
+- name: target_stop
+  run: |
+    nvme disconnect -n {{ config.qualify_tcp.subnqn }}
+
+- name: test_hugepages
+  run: |
+    hugepages setup --count 512
+    hugepages mount
+    test "$(cat /sys/kernel/mm/hugepages/hugepages-2048kB/nr_hugepages)" -ge 512
+    grep -q hugetlbfs /proc/mounts
+
+# nvme1 to vfio-pci and back, as xnvme-driver does before SPDK's nvmf_tgt
+- name: test_userspace_driver
+  run: |
+    modprobe vfio-pci
+    devbind --device {% for c in target.nvme.values() if c.serial == config.rig.devices.nvme1.serial %}{{ c.bdf }}{% endfor %} --bind vfio-pci
+    test -e /sys/bus/pci/devices/{% for c in target.nvme.values() if c.serial == config.rig.devices.nvme1.serial %}{{ c.bdf }}{% endfor %}/iommu_group
+    test "$(basename $(readlink /sys/bus/pci/devices/{% for c in target.nvme.values() if c.serial == config.rig.devices.nvme1.serial %}{{ c.bdf }}{% endfor %}/driver))" = vfio-pci
+    ls /dev/vfio/$(basename $(readlink /sys/bus/pci/devices/{% for c in target.nvme.values() if c.serial == config.rig.devices.nvme1.serial %}{{ c.bdf }}{% endfor %}/iommu_group))
+    devbind --device {% for c in target.nvme.values() if c.serial == config.rig.devices.nvme1.serial %}{{ c.bdf }}{% endfor %} --bind nvme
+    modprobe uio_pci_generic
+
+- name: guest_shutdown
+  uses: rig_guest_kill
+  with:
+    guest_name: qualify

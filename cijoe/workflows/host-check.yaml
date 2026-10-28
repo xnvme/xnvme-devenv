@@ -1,7 +1,10 @@
 ---
 doc: |
-  Check that the host has every tool the environments rely on
+  Check that the host has every tool the environments rely on, as
+  configs/host-tools.toml describes them
 
 steps:
-- name: host_check
-  uses: host_check
+- name: host_tools
+  uses: core.tools_check
+  with:
+    target_name: initiator

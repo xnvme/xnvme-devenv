@@ -1,4 +1,4 @@
-# fabrics-node-emulated: an emulated RDMA NIC whose far end is an NVMe/RDMA
+# rdma-node-emulated: an emulated RDMA NIC whose far end is an NVMe/RDMA
 # target, for testing an NVMe-oF initiator without RDMA hardware. The NIC is
 # rocm-ernic, whose server runs its nvmeof backend and answers over the
 # emulated RDMA transport as an NVMe controller, so the guest and the server
