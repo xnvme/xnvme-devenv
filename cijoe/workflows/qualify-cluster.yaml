@@ -56,7 +56,8 @@ steps:
 
 - name: test_gpu_and_nic
   run: |
-    ls {{ (target.gpu | first).render | first }}
+    test -n "{% for g in target.gpu if g.render %}{{ g.render | first }}{% endfor %}"
+    ls {% for g in target.gpu if g.render %}{{ g.render | first }}{% endfor %}
     test -n "{% for n in target.nic if n.rdma %}{{ n.rdma | first }}{% endfor %}"
 
 # Our kernel, not the stock one, and its io_uring dma-buf support against the

@@ -53,8 +53,8 @@ steps:
 
 - name: test_gpu
   run: |
-    test {{ target.gpu | length }} -ge 1
-    ls {{ (target.gpu | first).render | first }}
+    test -n "{% for g in target.gpu if g.render %}{{ g.render | first }}{% endfor %}"
+    ls {% for g in target.gpu if g.render %}{{ g.render | first }}{% endfor %}
 
 - name: test_bdf
   run: |
