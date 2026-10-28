@@ -31,12 +31,16 @@ system_args.raw = """\
 """
 system_args.tcp_forward = {host = 4200, guest = 22}
 
+# With a vIOMMU, as xNVMe's iommu_enabled guests, so a device can be handed to
+# vfio-pci; it takes no PCI slot, so no rig's BDFs move. configs/no-iommu.toml
+# takes it away, for qualify-pcie-noiommu
 [qemu.guests.qualify]
 path = "{{ local.env.HOME }}/guests/xnvme-devenv-qualify"
 system_label = "x86_64"
 system_args.kwa = {cpu = "host", smp = 4, m = "6G", accel = "kvm"}
 system_args.raw = """\
--M q35 \
+-M "type=q35,kernel_irqchip=split" \
+-device "intel-iommu,pt=on,intremap=on,caching-mode=on" \
 """
 system_args.tcp_forward = {host = 4200, guest = 22}
 
@@ -56,3 +60,8 @@ gz_path = "{{ local.env.HOME }}/system_imaging/disk/xnvme-devenv-guest-x86_64.im
 # The guest's name for the NIC's RDMA device; the servers are the rig's
 [rocm_ernic.transport]
 ibdev = "rocm-rdma-ernic0"
+
+# The NQN qualify-tcp exports nvme3 under, its own, so the guest does not take
+# the TCP path for another path to nvme3's subsystem
+[qualify_tcp]
+subnqn = "nqn.2026-10.io.xnvme:devenv-tcp"

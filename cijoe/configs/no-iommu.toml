@@ -1,0 +1,6 @@
+# The qualify guest without its vIOMMU, as xNVMe's iommu_disabled guests, layered
+# after configs/images.toml
+[qemu.guests.qualify]
+system_args.raw = """\
+-M q35 \
+"""

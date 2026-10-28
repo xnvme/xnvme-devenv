@@ -10,14 +10,14 @@ CIJOE_OUTPUT ?= cijoe-output
 WORKDIR ?= $(CURDIR)/.work
 # The container writes as root; reading what it left may need sudo
 SUDO ?=
-CIJOE_CONFIGS = --config ../lock.toml --config configs/images.toml
+CIJOE_CONFIGS = --config ../lock.toml --config configs/images.toml --config configs/host-tools.toml
 # The rig qualify-cluster boots: rig names, from rigs/, or paths to rig files,
 # each one more config, later ones taking precedence, so a file can change one
 # detail
 RIG ?= cluster-node-emulated
 RIG_CONFIGS = $(foreach r,$(RIG),--config $(if $(findstring /,$(r)),$(abspath $(r)),../rigs/$(r).toml))
 
-.PHONY: host ci logs derive qualify-cluster qualify-storage qualify-fabrics qualify-compute qualify-passthru test clean
+.PHONY: host ci logs derive qualify-cluster qualify-pcie qualify-pcie-iommu qualify-pcie-noiommu qualify-tcp qualify-rdma qualify-compute qualify-passthru test clean
 
 host:
 	cd cijoe && DOCKER="$(DOCKER)" HOST_IMAGE="$(HOST_IMAGE)" cijoe workflows/host.yaml --monitor \
@@ -30,7 +30,7 @@ ci:
 			mkdir -p "$$HOME/run"; \
 			export PATH=$$HOME/.local/bin:$$PATH; \
 			pipx install ./cijoe --include-deps --force >/dev/null; \
-			make derive qualify-cluster qualify-storage qualify-fabrics qualify-compute RIG="$(RIG)"'
+			make derive qualify-cluster qualify-pcie qualify-tcp qualify-rdma qualify-compute RIG="$(RIG)"'
 
 # The ends of the guests' serial consoles and the servers' logs, after a ci run
 logs:
@@ -52,13 +52,23 @@ test:
 qualify-cluster:
 	cd cijoe && cijoe workflows/qualify-cluster.yaml --monitor $(CIJOE_CONFIGS) $(RIG_CONFIGS) --output $(CIJOE_OUTPUT)-qualify-cluster
 
-# The storage-node-emulated rig boots with its controllers where consumers expect
-qualify-storage:
-	cd cijoe && cijoe workflows/qualify-storage.yaml --monitor $(CIJOE_CONFIGS) --config ../rigs/storage-node-emulated.toml --output $(CIJOE_OUTPUT)-qualify-storage
+# The storage-node-emulated rig boots with its controllers where consumers expect,
+# with the guest's vIOMMU and without, as xNVMe's matrix tests them
+qualify-pcie: qualify-pcie-iommu qualify-pcie-noiommu
 
-# The fabrics-node-emulated rig's NVMe/RDMA target answers the guest's initiator
-qualify-fabrics:
-	cd cijoe && cijoe workflows/qualify-fabrics.yaml --monitor $(CIJOE_CONFIGS) --config ../rigs/fabrics-node-emulated.toml --output $(CIJOE_OUTPUT)-qualify-fabrics
+qualify-pcie-iommu:
+	cd cijoe && cijoe workflows/qualify-pcie.yaml --monitor $(CIJOE_CONFIGS) --config ../rigs/storage-node-emulated.toml --output $(CIJOE_OUTPUT)-qualify-pcie-iommu
+
+qualify-pcie-noiommu:
+	cd cijoe && cijoe workflows/qualify-pcie.yaml --monitor $(CIJOE_CONFIGS) --config configs/no-iommu.toml --config ../rigs/storage-node-emulated.toml --output $(CIJOE_OUTPUT)-qualify-pcie-noiommu
+
+# The storage-node-emulated rig's nvme3, exported over NVMe/TCP and read back
+qualify-tcp:
+	cd cijoe && cijoe workflows/qualify-tcp.yaml --monitor $(CIJOE_CONFIGS) --config ../rigs/storage-node-emulated.toml --output $(CIJOE_OUTPUT)-qualify-tcp
+
+# The rdma-node-emulated rig's NVMe/RDMA target answers the guest's initiator
+qualify-rdma:
+	cd cijoe && cijoe workflows/qualify-rdma.yaml --monitor $(CIJOE_CONFIGS) --config ../rigs/rdma-node-emulated.toml --output $(CIJOE_OUTPUT)-qualify-rdma
 
 # The compute-node-emulated rig's GPU comes up and does I/O with its NVMe drive
 qualify-compute:

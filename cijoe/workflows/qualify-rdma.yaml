@@ -1,6 +1,6 @@
 ---
 doc: |
-  Qualify an xnvme-devenv guest on the fabrics-node-emulated rig
+  Qualify an xnvme-devenv guest on the rdma-node-emulated rig
 
   Boots the derived guest on the rig, gives the NIC's netdev the guest's end of
   the transport, and checks that the kernel's NVMe/RDMA initiator discovers the
@@ -26,11 +26,16 @@ steps:
 - name: root_unlock
   uses: root_unlock
 
-- name: rig_devices
-  uses: rig_devices
-  with:
-    guest_name: qualify
-    expect_controllers: 0
+- name: facts
+  uses: core.facts_gather
+
+- name: test_controllers
+  run: |
+    test {{ target.nvme | length }} -eq 0
+
+- name: test_nic
+  run: |
+    test -n "{% for n in target.nic if n.rdma %}{{ n.rdma | first }}{% endfor %}"
 
 - name: test_discover
   run: |

@@ -475,60 +475,12 @@ def test_a_layered_config_changes_one_field_and_appends_devices(tmp_path):
     assert topo.device("nic0")["port"] == "p2p_dn0", "the rest of nic0 is kept"
 
 
-PCI = "/sys/devices/pci0000:00/0000:00:03.0"
-GUEST_LISTING = f"""\
-ns nvme1n1 {PCI}/0000:01:00.0/nvme/nvme1/nvme1n1 1
-ns ng1n1 {PCI}/0000:01:00.0/nvme/nvme1/ng1n1 1
-ns ng0n1 /sys/devices/pci0000:00/0000:00:04.0/0000:02:00.0/nvme/nvme0/ng0n1 1
-ns nvme2n1 /sys/devices/virtual/nvme-subsystem/nvme-subsys2/nvme2n1 1
-ns ng2n1 /sys/devices/virtual/nvme-subsystem/nvme-subsys2/ng2n1
-subsys nvme-subsys1 {PCI}/0000:01:00.0/nvme/nvme1
-subsys nvme-subsys2 /sys/devices/pci0000:00/0000:00:05.0/0000:03:00.0/nvme/nvme2
-"""
 
 
-def test_guest_nvme_by_bdf():
-    ctrls = rig.guest_nvme(GUEST_LISTING)
-
-    assert ctrls["0000:01:00.0"] == {
-        "controller": "nvme1",
-        "namespaces": [{"nsid": 1, "bdev": "/dev/nvme1n1", "cdev": "/dev/ng1n1"}],
-    }
-    assert ctrls["0000:02:00.0"]["namespaces"] == [{"nsid": 1, "cdev": "/dev/ng0n1"}]
-    shared = ctrls["0000:03:00.0"]
-    assert shared["controller"] == "nvme2"
-    assert {"nsid": 1, "bdev": "/dev/nvme2n1"} in shared["namespaces"]
-    assert {"cdev": "/dev/ng2n1"} in shared["namespaces"], "no nsid is left out"
 
 
-def test_guest_devices_reports_where_they_are(tmp_path):
-    def pcidev(qdev_id, bus, devices=()):
-        dev = {"qdev_id": qdev_id, "bus": bus, "slot": 0, "function": 0}
-        if devices:
-            dev["pci_bridge"] = {"devices": list(devices)}
-        return dev
-
-    tree = [{"devices": [pcidev("nvme0_rp", 0, [pcidev("nvme0", 1)]), pcidev("", 0)]}]
-    FakeQMP(tmp_path / "qmp.sock", {"query-pci": tree})
-    addresses = rig.pci_addresses(tmp_path)
-    assert addresses == {"nvme0_rp": "0000:00:00.0", "nvme0": "0000:01:00.0"}
-
-    topo = Topology(
-        {
-            "devices": [
-                {"name": "nvme0", "provider": "qemu", "labels": ["nvm"]},
-                {"name": "gone", "provider": "qemu", "boot": False},
-            ]
-        }
-    )
-    report = rig.guest_devices(topo, addresses, rig.guest_nvme(GUEST_LISTING))
-    assert list(report) == ["nvme0"], "a device not in the guest is not reported"
-    assert report["nvme0"]["labels"] == ["nvm"]
-    assert report["nvme0"]["controller"] == "nvme1"
 
 
-def test_guest_listing_command_is_valid_shell():
-    subprocess.run(["bash", "-n", "-c", rig.GUEST_NVME], check=True)
 
 
 @pytest.mark.parametrize("path", RIGS, ids=[p.stem for p in RIGS])
@@ -739,66 +691,14 @@ def test_guest_start_takes_ssh_for_a_guest_without_a_serial_login(
     assert rig_guest_start.main(args, Ssh()) == expect
 
 
-# As a FreeBSD 14.4 guest on storage-node-passthru printed them
-FREEBSD_NVME = """\
-hostb0@pci0:0:0:0:\tclass=0x060000 rev=0x00 hdr=0x00 vendor=0x8086 device=0x29c0
-pcib1@pci0:0:2:0:\tclass=0x060400 rev=0x00 hdr=0x01 vendor=0x1b36 device=0x000c
-nvme0@pci0:1:0:0:\tclass=0x010802 rev=0x00 hdr=0x00 vendor=0x144d device=0xa80c
-nvme1@pci0:10:0:0:\tclass=0x010802 rev=0x02 hdr=0x00 vendor=0x1b36 device=0x0010
-scbus2 on ahcich2 bus 0:
-<QEMU QEMU DVD-ROM 2.5+>           at scbus2 target 0 lun 0 (pass0,cd0)
-<>                                 at scbus2 target -1 lun ffffffff ()
-scbus6 on nvme0 bus 0:
-<Samsung SSD 990 PRO 2TB 5B2QJXD7>  at scbus6 target 0 lun 1 (pass1,nda0)
-<>                                 at scbus6 target -1 lun ffffffff ()
-scbus-1 on xpt0 bus 0:
-<>                                 at scbus-1 target -1 lun ffffffff (xpt0)
- nvme0: Samsung SSD 990 PRO 2TB
-    nvme0ns1 (1907729MB)
- nvme1: QEMU NVMe Ctrl
-    nvme1ns1 (1024MB)
-"""
 
 
-def test_guest_nvme_freebsd_by_bdf():
-    assert rig.guest_nvme_freebsd(FREEBSD_NVME) == {
-        "0000:01:00.0": {
-            "controller": "nvme0",
-            "namespaces": [{"nsid": 1, "cdev": "/dev/nvme0ns1", "bdev": "/dev/nda0"}],
-        },
-        "0000:0a:00.0": {
-            "controller": "nvme1",
-            "namespaces": [{"nsid": 1, "cdev": "/dev/nvme1ns1"}],
-        },
-    }
 
 
-# Get-Disk's locations, as Windows reports a disk behind a PCI function
-WINDOWS_NVME = """\
-disk 0 PCI Slot 0 : Bus 0 : Device 31 : Function 2 : Adapter 0 : Port 0 : Target 0 : LUN 0
-disk 1 PCI Slot 2 : Bus 1 : Device 0 : Function 0 : Adapter 0 : Port 0 : Target 0 : LUN 0
-disk 2 Integrated : Adapter 0 : Port 0 : Target 0 : LUN 0
-"""
 
 
-def test_guest_nvme_windows_by_bdf():
-    listing = WINDOWS_NVME + "serial 1 S7HENU0Y551082W\nserial 2 VFUKVSSD0000\n"
-    assert rig.guest_nvme_windows(listing) == {
-        "0000:00:1f.2": {"namespaces": [{"bdev": "//./PhysicalDrive0"}]},
-        "0000:01:00.0": {
-            "namespaces": [{"bdev": "//./PhysicalDrive1"}],
-            "serial": "S7HENU0Y551082W",
-        },
-        "disk2": {
-            "namespaces": [{"bdev": "//./PhysicalDrive2"}],
-            "serial": "VFUKVSSD0000",
-        },
-    }
 
 
-def test_guest_nvme_listings_parse_as_shell():
-    for listing in (rig.GUEST_NVME, rig.GUEST_NVME_FREEBSD, rig.GUEST_NVME_WINDOWS):
-        subprocess.run(["bash", "-n", "-c", listing], check=True)
 
 
 def test_passthru_needs_the_drives_serial(tmp_path):
@@ -821,49 +721,9 @@ def test_qemu_device_gets_its_serial():
     assert topo.qemu_device_specs(topo.devices[0])[0].startswith("nvme,mdts=7,serial=beef0000,id=nvme0")
 
 
-def test_guest_nvme_reads_controller_serials():
-    listing = GUEST_LISTING + f"ctrl {PCI}/0000:01:00.0/nvme/nvme1 beef0000\n"
-    ctrls = rig.guest_nvme(listing)
-    assert ctrls["0000:01:00.0"]["serial"] == "beef0000"
-    assert "serial" not in ctrls["0000:02:00.0"]
 
 
-def test_guest_nvme_freebsd_reads_controller_serials():
-    listing = FREEBSD_NVME + "ctrl nvme0 S7HENU0Y551082W\nctrl nvme1 beef0001\n"
-    ctrls = rig.guest_nvme_freebsd(listing)
-    assert ctrls["0000:01:00.0"]["serial"] == "S7HENU0Y551082W"
-    assert ctrls["0000:0a:00.0"]["serial"] == "beef0001"
 
 
-def test_guest_devices_finds_controllers_by_serial():
-    # The guest numbered them out of bus order, and the two of a subsystem share one
-    nvme = {
-        "0000:01:00.0": {"controller": "nvme9", "serial": "beef0000", "namespaces": []},
-        "0000:02:00.0": {"controller": "nvme0", "serial": "beef0001", "namespaces": []},
-        "0000:03:00.0": {"controller": "nvme4", "serial": "beef0005", "namespaces": []},
-        "0000:04:00.0": {"controller": "nvme5", "serial": "beef0005", "namespaces": []},
-        "disk1": {"serial": "S7HENU0Y551082W", "namespaces": [{"bdev": "//./PhysicalDrive1"}]},
-    }
-    topo = Topology(
-        {
-            "devices": [
-                {"name": "a", "provider": "qemu", "serial": "beef0000"},
-                {"name": "b", "provider": "qemu", "serial": "beef0001"},
-                {"name": "c", "provider": "qemu", "serial": "beef0005"},
-                {"name": "d", "provider": "qemu", "serial": "beef0005"},
-                {"name": "real", "provider": "vfio-pci", "serial": "S7HENU0Y551082W"},
-                {"name": "gone", "provider": "qemu", "serial": "beef0099"},
-            ]
-        }
-    )
-    # QEMU's addresses, swapped for a and b to show the serial wins
-    addresses = {
-        "a": "0000:02:00.0", "b": "0000:01:00.0", "c": "0000:03:00.0",
-        "d": "0000:04:00.0", "real": "0000:05:00.0", "gone": "0000:06:00.0",
-    }
-    report = rig.guest_devices(topo, addresses, nvme)
-    assert report["a"]["controller"] == "nvme9"
-    assert report["b"]["controller"] == "nvme0"
-    assert report["c"]["controller"] == "nvme4" and report["d"]["controller"] == "nvme5"
-    assert report["real"]["namespaces"] == [{"bdev": "//./PhysicalDrive1"}]
-    assert "namespaces" not in report["gone"]
+
+

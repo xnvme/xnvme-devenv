@@ -1,10 +1,11 @@
 ---
 doc: |
-  Qualify an xnvme-devenv guest on the storage-node-emulated rig
+  Qualify an xnvme-devenv guest on the storage-node-emulated rig, over PCIe
 
   Boots the derived guest on the rig and checks that each of its NVMe
   controllers is at the BDF consumers' device lists name, the QEMU ones with
-  their serials, that each has its namespace, and that nvme1's is zoned.
+  their serials, that each has its namespace, and that nvme1's is zoned, the
+  namespace found in the facts core.facts_gather records, by nvme1's serial.
 
 steps:
 - name: guest_kill
@@ -26,11 +27,12 @@ steps:
 - name: root_unlock
   uses: root_unlock
 
-- name: rig_devices
-  uses: rig_devices
-  with:
-    guest_name: qualify
-    expect_controllers: 11
+- name: facts
+  uses: core.facts_gather
+
+- name: test_controllers
+  run: |
+    test {{ target.nvme | length }} -eq 11
 
 # nvme<i> is at bus i + 1; nvme2 is vfu_kvssd's, with a serial of its own. A serial
 # is padded with spaces to 20 bytes, as the controller reports it. Each
@@ -42,7 +44,7 @@ steps:
 - name: test_namespaces
   run: |
     test $(ls /dev/ng*n1 | wc -l) -eq 11
-    grep -x host-managed /sys/bus/pci/devices/0000:02:00.0/nvme/nvme*/nvme*n1/queue/zoned
+    grep -x host-managed /sys/block/$(basename {% for c in target.nvme.values() if c.serial == config.rig.devices.nvme1.serial %}{{ c.namespaces[0].bdev }}{% endfor %})/queue/zoned
 
 - name: guest_shutdown
   uses: rig_guest_kill

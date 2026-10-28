@@ -3,7 +3,8 @@ doc: |
   Build the host container from the lock
 
   Fetches and checks the host debs the lock pins, then builds the container
-  from the nosi base it pins; the build fails unless host_check passes in it.
+  from the nosi base it pins; the build fails unless the host has the tools
+  configs/host-tools.toml describes.
   Runs where cijoe is invoked, with the container engine in DOCKER and the
   image name in HOST_IMAGE.
 

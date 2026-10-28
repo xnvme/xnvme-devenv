@@ -50,12 +50,13 @@ through with, so a consumer adds them to its cijoe with
 checkout on any other host, and uses them as `xnvme_devenv.rig_guest_start` and
 so on. The guest is the consumer's own, Linux, FreeBSD or Windows, as its
 config describes it; the rig adds its topology and devices. Once the guest is up,
-`rig_devices` writes `guest-devices.toml` beside it, as `[guest.devices]`: each
-device present, with its labels, its BDF and, for an NVMe controller, its
-serial, the names the guest gave it and its namespaces. A controller is found
-by the serial the rig gives it, so the report does not depend on how the guest
-numbers its controllers. A consumer passes it as one more config
-and builds its device list from it, rather than keeping one of its own.
+cijoe's `core.facts_gather` records what the guest has as facts, its NVMe
+controllers, GPUs and NICs among them, under the guest's target name; the
+consumer's steps read them as `{{ target.nvme }}`, `{{ target.gpu }}` and
+`{{ target.nic }}`, and a later run with `--facts <output>/facts.toml`. A
+consumer finds the device it wants by what the rig fixes, an NVMe controller's
+serial or a function's BDF, and pairs it with the device's labels from the rig,
+so its device list does not depend on how the guest numbers its devices.
 
 A rig is named for the machine it stands in for and where its devices come
 from, emulated or passed through. `cluster-node-emulated` has an emulated GPU,
@@ -64,15 +65,22 @@ is qualified on it. `storage-node-emulated` has the NVMe controllers xNVMe's
 QEMU matrix tests, one per command set and format, each at a fixed BDF.
 `compute-node-emulated` has the GPU and one NVMe controller behind a switch,
 and `make qualify-compute` qualifies it.
-`fabrics-node-emulated` has the RDMA NIC alone, its far end an NVMe/RDMA
-target. `storage-node-passthru` passes the machine's own NVMe drive through
-with vfio-pci; the machine's config gives its BDF and serial, and the host container
+`rdma-node-emulated` has the RDMA NIC alone, its far end an NVMe/RDMA target.
+`storage-node-passthru` passes the machine's own NVMe drive through with
+vfio-pci; the machine's config gives its BDF and serial, and the host container
 needs `--privileged --ulimit memlock=-1`. CI has no drive to pass through, so
 `make qualify-passthru MACHINE=<file>` qualifies the rig on a machine that has
 one.
 `make qualify-cluster RIG=...` takes rig names or paths to rig files. Each is
 one more config, and later ones win, so a file of your own can change one
 detail of a rig without copying it.
+
+Each NVMe transport has a report of its own: `make qualify-pcie` checks the
+storage rig's controllers over PCIe, with the guest's vIOMMU and without;
+`make qualify-tcp` exports one of them through the guest kernel's NVMe/TCP
+target and reads it back, as xNVMe's tcp-linux tests do, and checks what
+xNVMe's tcp-spdk tests need of the guest; and `make qualify-rdma` connects to
+the RDMA rig's target.
 
 ## Making a release
 

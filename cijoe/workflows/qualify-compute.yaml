@@ -9,8 +9,10 @@ doc: |
   and between the drive and VRAM, and runs a GEMM on the GPU.
 
 steps:
-- name: host_check
-  uses: host_check
+- name: host_tools
+  uses: core.tools_check
+  with:
+    target_name: initiator
 
 - name: guest_kill
   uses: rig_guest_kill
@@ -42,11 +44,17 @@ steps:
     for _ in $(seq 36); do test -e /dev/kfd && ls /dev/dri | grep -q renderD && break; sleep 5; done
     test -e /dev/kfd && ls /dev/dri | grep -q renderD || { dmesg | grep -i amdgpu | tail -40; false; }
 
-- name: rig_devices
-  uses: rig_devices
-  with:
-    guest_name: qualify
-    expect_controllers: 1
+- name: facts
+  uses: core.facts_gather
+
+- name: test_controllers
+  run: |
+    test {{ target.nvme | length }} -eq 1
+
+- name: test_gpu
+  run: |
+    test {{ target.gpu | length }} -ge 1
+    ls {{ (target.gpu | first).render | first }}
 
 - name: test_bdf
   run: |
@@ -57,7 +65,7 @@ steps:
 - name: test_kernel
   run: |
     uname -r | grep -x '{{ config.lock.kernel.release }}'
-    rocjitsu-guest-check iouring-dmabuf /dev/nvme0n1
+    rocjitsu-guest-check iouring-dmabuf {% for c in target.nvme.values() if c.serial == config.rig.devices.nvme0.serial %}{{ c.namespaces[0].bdev }}{% endfor %}
 
 # HIP programs other than the guest checks, xNVMe's among them, rely on it
 - name: test_hip_env
@@ -70,7 +78,7 @@ steps:
 
 - name: test_vram_io
   run: |
-    rocjitsu-guest-check iouring-vram /dev/nvme0n1
+    rocjitsu-guest-check iouring-vram {% for c in target.nvme.values() if c.serial == config.rig.devices.nvme0.serial %}{{ c.namespaces[0].bdev }}{% endfor %}
 
 
 - name: guest_shutdown

@@ -10,6 +10,10 @@ RUN apt-get -qy update \
  && rm -rf /tmp/debs /var/lib/apt/lists/*
 COPY cijoe/ /opt/xnvme-devenv/cijoe/
 COPY rigs/ /opt/xnvme-devenv/rigs/
-# An image without a tool the environments rely on is never published
-RUN cd /opt/xnvme-devenv/cijoe && cijoe workflows/host-check.yaml --config configs/host-check.toml --monitor --no-report --output /tmp/host-check \
+# The package, with the cijoe it pins; an image without a tool the
+# environments rely on is never published
+RUN pipx install /opt/xnvme-devenv/cijoe --include-deps --force \
+ && cd /opt/xnvme-devenv/cijoe \
+ && cijoe workflows/host-check.yaml --config configs/host-check.toml --config configs/host-tools.toml \
+    --monitor --report-skip --output /tmp/host-check \
  && rm -rf /tmp/host-check
