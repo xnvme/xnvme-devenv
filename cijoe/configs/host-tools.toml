@@ -12,6 +12,7 @@ min = "0.9.64"
 [tools.oras]
 version = "oras version"
 [tools.mdadm]
+[tools.swtpm]
 [tools.vfu_kvssd]
 [tools."/opt/rocjitsu/bin/rocjitsu"]
 [tools."/opt/rocjitsu/bin/rocjitsu-vram"]
