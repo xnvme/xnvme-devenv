@@ -11,6 +11,7 @@ min = "0.9.64"
 [tools.pipx]
 [tools.oras]
 version = "oras version"
+[tools.fc-match]
 [tools.mdadm]
 [tools.swtpm]
 [tools.vfu_kvssd]
