@@ -55,6 +55,21 @@ and targets. DKMS builds the rest for that kernel:
 * 🧪 [uPCIe](https://github.com/safl/upcie) v0.10.4's experimental modules,
   `dmabuf_import` and `iommu_map_pa`
 
+🧰 **Two images from [nosi](https://github.com/safl/nosi).** Both come from
+the **N**iche **O**perating **S**ystem **I**mages, a rolling build of images
+loaded with a curated toolset for systems work
+([catalog](https://safl.dk/nosi)):
+
+* 🎛️ the guest is `ubuntu-2610-rocm`: Ubuntu 26.10 with ROCm 10 (`rocm-dev`,
+  `rocminfo`, `amd-smi`) and the RDMA userspace (rdma-core with the ionic
+  provider, perftest), all from the Ubuntu archive
+* 🐳 the host is `ubuntu-2604-docker`: Ubuntu 26.04 LTS as an OCI image, with
+  QEMU, OVMF and cijoe to boot the guests
+* 🛠️ both carry nosi's headless base: gcc, clang, rustc and zig, meson,
+  ninja, cmake and cargo, gdb with gdb-dashboard and lldb, perf, strace and
+  valgrind, nvme-cli and smartmontools, and the user-space PCI plumbing of
+  vfio, hugepages and the IOMMU command line
+
 🔌 **Three ways a device gets in:**
 
 * 🖥️ **emulated** by [QEMU](https://www.qemu.org/): NVMe controllers, PCIe switches, a TPM backed by
