@@ -44,6 +44,7 @@ jobs:
   # takes the images, and the job only adds publishing, on main, once VERSION
   # names a version that has no tag yet; the release creates the tag.
   release:
+    needs: [reuse, test]
     runs-on: ubuntu-24.04
     timeout-minutes: 180
     permissions:
@@ -52,21 +53,6 @@ jobs:
 
     steps:
     - uses: actions/checkout@v6
-
-    - name: Decide whether this run releases, and under which tag
-      id: release
-      env:
-        GH_TOKEN: ${{ github.token }}
-      run: |
-        tag=""
-        if [ "${{ github.event_name }}" = push ] && [ "${{ github.ref }}" = refs/heads/main ]; then
-          tag="v$(cat VERSION)"
-          if gh api "repos/${{ github.repository }}/git/ref/tags/$tag" > /dev/null 2>&1; then
-            tag=""
-          fi
-        fi
-        echo "tag=$tag" >> "$GITHUB_OUTPUT"
-        echo "release: ${tag:-none}"
 
     - name: Install cijoe, which builds the host container from the lock
       run: |
@@ -91,6 +77,21 @@ jobs:
         name: cijoe-reports
         path: cijoe/cijoe-output-*/report.html
         if-no-files-found: warn
+
+    - name: Decide whether this run releases, and under which tag
+      id: release
+      env:
+        GH_TOKEN: ${{ github.token }}
+      run: |
+        tag=""
+        if [ "${{ github.event_name }}" = push ] && [ "${{ github.ref }}" = refs/heads/main ]; then
+          tag="v$(cat VERSION)"
+          if gh api "repos/${{ github.repository }}/git/ref/tags/$tag" > /dev/null 2>&1; then
+            tag=""
+          fi
+        fi
+        echo "tag=$tag" >> "$GITHUB_OUTPUT"
+        echo "release: ${tag:-none}"
 
     - uses: oras-project/setup-oras@v2
       if: steps.release.outputs.tag != ''
