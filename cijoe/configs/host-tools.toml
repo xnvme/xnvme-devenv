@@ -12,6 +12,10 @@ min = "0.9.67"
 [tools.oras]
 version = "oras version"
 [tools.fc-match]
+[tools.doxygen]
+[tools.dot]
+version = "dot -V"
+[tools.ctags]
 [tools.mdadm]
 [tools.pigz]
 [tools.swtpm]

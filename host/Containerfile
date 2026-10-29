@@ -6,7 +6,7 @@ ARG BASE
 FROM ${BASE}
 COPY host/debs/ /tmp/debs/
 RUN apt-get -qy update \
- && DEBIAN_FRONTEND=noninteractive apt-get -qy install --no-install-recommends /tmp/debs/*.deb fontconfig fonts-dejavu-core mdadm ovmf pigz swtpm \
+ && DEBIAN_FRONTEND=noninteractive apt-get -qy install --no-install-recommends /tmp/debs/*.deb doxygen fontconfig fonts-dejavu-core graphviz mdadm ovmf pigz swtpm universal-ctags \
  && rm -rf /tmp/debs /var/lib/apt/lists/*
 COPY cijoe/ /opt/xnvme-devenv/cijoe/
 COPY rigs/ /opt/xnvme-devenv/rigs/
