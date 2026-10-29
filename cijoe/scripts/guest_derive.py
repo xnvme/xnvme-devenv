@@ -5,7 +5,8 @@ Turn a running nosi guest into an xnvme-devenv guest
 
 Installs the guest debs: our kernel, linux-image-7.3.0-xnvme<n> and its
 headers, and the DKMS packages, which build their modules for it here, once
-per release rather than per test run. Makes our kernel the one GRUB boots,
+per release rather than per test run. The stock kernel's headers go first, so
+DKMS builds for our kernel alone. Makes our kernel the one GRUB boots,
 reboots into it, and checks that it is running and that every DKMS module
 took the place of the kernel's own. Installs the guest checks,
 rocjitsu-guest-check and its sources, from guest/tests.
@@ -62,6 +63,13 @@ def main(args, cijoe):
             return errno.EIO
 
     err, _ = cijoe.run(
+        "export DEBIAN_FRONTEND=noninteractive && "
+        "apt-get -qy purge $(dpkg-query -W -f '${binary:Package}\\n' 'linux-headers-*')"
+    )
+    if err:
+        return err
+
+    err, _ = cijoe.run(
         "export DEBIAN_FRONTEND=noninteractive && apt-get -qy update && "
         "apt-get -qy install --no-install-recommends liburing-dev "
         f"{' '.join(f'{REMOTE}/{d.name}' for d in debs)}"
@@ -101,6 +109,10 @@ def main(args, cijoe):
     )
     if err:
         log.error("a DKMS module did not take the kernel's place")
+        return err
+    err, _ = cijoe.run(f"! dkms status | grep -v ', {kernel},' | grep installed")
+    if err:
+        log.error(f"DKMS built modules for a kernel other than {kernel}")
         return err
 
     # Ubuntu's ROCr insists on a hotswap library for rocjitsu's gfx1250 A0 agent,
