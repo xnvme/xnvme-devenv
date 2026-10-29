@@ -113,9 +113,12 @@ yet, the same run publishes the host as
 `ghcr.io/xnvme/xnvme-devenv/host:vX.Y.Z` and the guest, with the lock it was
 made from, as `ghcr.io/xnvme/xnvme-devenv/guest-ubuntu-2610:vX.Y.Z` and
 `:inputs-<hash>`, a guest staged that way tagged again rather than pushed, and
-creates the tag with a GitHub release that names both and the guest's layer
-digest to pin, with the lock, the guest image's sha256 and the cijoe reports
-of the run attached. Nobody pushes a tag by hand.
+creates the tag with a GitHub release that names both, with the lock, the
+guest image's sha256 and the cijoe reports of the run attached. Nobody pushes a
+tag by hand. A consumer pins the host and the guest by the same version tag,
+`oras://ghcr.io/xnvme/xnvme-devenv/guest-ubuntu-2610:vX.Y.Z` for the guest,
+which cijoe stages once; the release names the guest's layer digest too, for
+pinning the bytes themselves.
 
 ## Licensing
 
