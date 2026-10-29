@@ -23,6 +23,7 @@ from pathlib import Path
 
 TESTS = Path(__file__).resolve().parents[2] / "guest" / "tests"
 REMOTE = "/tmp/xnvme-devenv"
+DKMS_BEFORE = "/var/tmp/xnvme-devenv-dkms-before"
 MODULES = ["amdgpu", "ionic", "ionic_rdma", "dmabuf_import", "iommu_map_pa"]
 
 
@@ -64,7 +65,8 @@ def main(args, cijoe):
 
     err, _ = cijoe.run(
         "export DEBIAN_FRONTEND=noninteractive && "
-        "apt-get -qy purge $(dpkg-query -W -f '${binary:Package}\\n' 'linux-headers-*')"
+        "apt-get -qy purge $(dpkg-query -W -f '${binary:Package}\\n' 'linux-headers-*') && "
+        f"dkms status > {DKMS_BEFORE}"
     )
     if err:
         return err
@@ -110,7 +112,10 @@ def main(args, cijoe):
     if err:
         log.error("a DKMS module did not take the kernel's place")
         return err
-    err, _ = cijoe.run(f"! dkms status | grep -v ', {kernel},' | grep installed")
+    # The nosi base's own DKMS modules were built for its kernel before ours
+    err, _ = cijoe.run(
+        f"! dkms status | grep -vxFf {DKMS_BEFORE} | grep -v ', {kernel},' | grep installed"
+    )
     if err:
         log.error(f"DKMS built modules for a kernel other than {kernel}")
         return err
@@ -131,4 +136,4 @@ def main(args, cijoe):
         log.error("no hipcc in the guest; rocjitsu-guest-check cannot run")
         return err
 
-    return cijoe.run(f"rm -rf {REMOTE} && apt-get clean")[0]
+    return cijoe.run(f"rm -rf {REMOTE} {DKMS_BEFORE} && apt-get clean")[0]
