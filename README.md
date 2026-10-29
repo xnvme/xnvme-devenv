@@ -43,6 +43,18 @@ dma-buf. The NIC does RDMA WRITE, READ and SEND into and out of VRAM, and its
 server confirms the bytes went through VRAM, not system memory
 (`compute-node-emulated`, `cluster-node-emulated`).
 
+🐧 **A guest kernel built for this.** The guest boots Linux 7.3 from
+[safl/linux](https://github.com/safl/linux) (`xnvme-ci/v7.3-2`), with the
+io_uring dma-buf series on top, so io_uring reads and writes straight into
+GPU memory. It is configured with iommufd and the vfio-pci device cdev, PCI
+P2PDMA, dma-buf heaps and udmabuf, and the NVMe/TCP and NVMe/RDMA initiators
+and targets. DKMS builds the rest for that kernel:
+
+* 🧠 amdgpu, with the GC 12.1 fixes
+* 📡 `ionic-ernic`, the RDMA NIC's driver
+* 🧪 [uPCIe](https://github.com/safl/upcie) v0.10.4's experimental modules,
+  `dmabuf_import` and `iommu_map_pa`
+
 🔌 **Three ways a device gets in:**
 
 * 🖥️ **emulated** by [QEMU](https://www.qemu.org/): NVMe controllers, PCIe switches, a TPM backed by
