@@ -7,7 +7,7 @@
 [tools.qemu-img]
 [tools.qemu-nbd]
 [tools.cijoe]
-min = "0.9.68"
+min = "0.9.69"
 [tools.pipx]
 [tools.oras]
 version = "oras version"
