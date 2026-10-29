@@ -1,0 +1,26 @@
+# uefi-secureboot-tpm: the UEFI firmware with Microsoft's Secure Boot keys and a
+# TPM 2.0, which a Windows 11 guest needs to boot, layered on a rig that gives
+# its drives, as in RIG="storage-node-passthru uefi-secureboot-tpm". The
+# firmware's variables start as a copy of their template and are kept with the
+# guest, as is the TPM's state, served by swtpm for as long as the guest runs.
+# The guest's own config boots its disk with 'boot_driver = "ide-hd"', the
+# kind of disk a Windows image is installed on.
+
+[rig.devices.firmware]
+provider = "qemu"
+drives = [
+  "if=pflash,format=raw,readonly=on,file=/usr/share/OVMF/OVMF_CODE_4M.ms.fd",
+  "if=pflash,format=raw,file={{ local.env.HOME }}/guests/uefi-secureboot-tpm/OVMF_VARS_4M.ms.fd",
+]
+image = {path = "{{ local.env.HOME }}/guests/uefi-secureboot-tpm/OVMF_VARS_4M.ms.fd", from = "/usr/share/OVMF/OVMF_VARS_4M.ms.fd"}
+
+[rig.devices.tpm0]
+provider = "qemu"
+bus = false
+device = "tpm-tis,tpmdev=tpm0_dev"
+socket = "{{ local.env.HOME }}/guests/uefi-secureboot-tpm/swtpm.sock"
+server = "swtpm socket --tpm2 --ctrl type=unixio,path={socket} --tpmstate dir={{ local.env.HOME }}/guests/uefi-secureboot-tpm --flags not-need-init"
+backends = [
+  "chardev socket,id=tpm0_chr,path={socket}",
+  "tpmdev emulator,id=tpm0_dev,chardev=tpm0_chr",
+]

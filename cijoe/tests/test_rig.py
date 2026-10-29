@@ -371,6 +371,84 @@ def test_create_images(tmp_path):
     assert image.read_bytes() == b"kept", "an existing image is left alone"
 
 
+def test_create_images_copies_a_template(tmp_path):
+    template = tmp_path / "VARS.fd"
+    template.write_bytes(b"vars")
+    image = tmp_path / "sub" / "a.fd"
+    dev = {
+        "name": "a",
+        "provider": "qemu",
+        "image": {"path": str(image), "from": str(template)},
+    }
+    topo = Topology({"devices": [dev]})
+
+    assert rig.create_images(make_cijoe(tmp_path), topo) == 0
+    assert image.read_bytes() == b"vars"
+
+    image.write_bytes(b"kept")
+    assert rig.create_images(make_cijoe(tmp_path), topo) == 0
+    assert image.read_bytes() == b"kept", "an existing copy is left alone"
+
+
+TPM = {
+    "name": "tpm0",
+    "provider": "qemu",
+    "bus": False,
+    "device": "tpm-tis,tpmdev=tpm0_dev",
+    "socket": "/g/swtpm.sock",
+    "server": "swtpm socket --ctrl type=unixio,path={socket}",
+    "backends": [
+        "chardev socket,id=tpm0_chr,path={socket}",
+        "tpmdev emulator,id=tpm0_dev,chardev=tpm0_chr",
+    ],
+}
+
+
+def test_qemu_device_with_a_server_and_backends():
+    topo = Topology({"devices": [TPM]})
+    args = rig.guest_args(topo, {}, Path("/g"))
+
+    assert topo.served() == [{**TPM}]
+    assert "-object" not in args, "only a vfio-user server maps guest memory"
+    assert args[: args.index("-device")] == [
+        "-chardev",
+        "socket,id=tpm0_chr,path=/g/swtpm.sock",
+        "-tpmdev",
+        "emulator,id=tpm0_dev,chardev=tpm0_chr",
+    ]
+    assert args[args.index("-device") + 1] == "tpm-tis,tpmdev=tpm0_dev,id=tpm0"
+
+
+def test_qemu_device_without_device_gives_only_its_drives():
+    firmware = {"name": "fw", "provider": "qemu", "drives": ["if=pflash,file=a.fd"]}
+    topo = Topology({"devices": [firmware]})
+
+    assert topo.port_args() == []
+    assert topo.boot_device_args() == []
+    assert topo.drive_args() == ["-drive", "if=pflash,file=a.fd"]
+
+    for refused in ({"children": ["nvme-ns"]}, {"port": "rp"}, {"boot": False}):
+        with pytest.raises(ValueError):
+            Topology({"devices": [{**firmware, **refused}]})
+
+
+def test_backend_without_a_value_is_refused():
+    with pytest.raises(ValueError, match="tpm0"):
+        Topology({"devices": [{**TPM, "backends": ["chardev"]}]})
+
+
+def test_uefi_secureboot_tpm_rig_boots_firmware_and_tpm():
+    path = RIGS_DIR / "uefi-secureboot-tpm.toml"
+    topo = Topology(tomllib.loads(path.read_text())["rig"])
+    args = rig.guest_args(topo, {}, Path("/g"))
+
+    assert [d["name"] for d in topo.served()] == ["tpm0"]
+    code = [a for a in topo.drive_args() if a != "-drive"][0]
+    assert code.endswith("OVMF_CODE_4M.ms.fd")
+    assert args.index("-tpmdev") < args.index("-device")
+    assert topo.port_args() == []
+
+
 def test_rig_from_config_ignores_the_rig_variable(tmp_path, monkeypatch):
     cijoe = make_cijoe(tmp_path)
     cijoe.config.options = {"rig": keyed(SWITCHED)}

@@ -67,6 +67,14 @@ for as long as the guest does, from before the guest starts to after it is
 killed, whether or not its device is plugged in, since one server may need
 another's memory, as the NIC's does the GPU's VRAM.
 
+A 'qemu' device may have a server too, as a TPM has swtpm, started and stopped
+as a 'vfio-user' device's is, and 'backends', the further qemu arguments its
+'-device' needs, each an option and its value, '{socket}' replaced as in
+'server', put before the devices: "chardev socket,id=tpm0_chr,path={socket}".
+One without 'device' is on no bus and gives only its drives, as firmware does.
+An 'image' with 'from' is a copy of that file, made when it is missing, as a
+firmware's variables are of their template.
+
 A device of provider 'vfio-pci' is the host's own, passed through: 'host' is
 its BDF on the host, and 'props' as for 'vfio-user'. Before the guest starts,
 it and the other endpoints in its IOMMU group are bound to vfio-pci with
@@ -128,6 +136,19 @@ class Topology:
             port = dev.get("port")
             if port is not None and port not in self.ports:
                 raise ValueError(f"device {dev['name']}: no port named {port}")
+            if dev["provider"] == "qemu" and "device" not in dev:
+                if port or dev.get("children"):
+                    raise ValueError(
+                        f"device {dev['name']}: a port or children but no 'device'"
+                    )
+                if not dev.get("boot", True):
+                    raise ValueError(f"device {dev['name']}: no 'device' to plug")
+            for backend in dev.get("backends", []):
+                if " " not in backend:
+                    raise ValueError(
+                        f"device {dev['name']}: backend {backend!r} is not"
+                        " '<option> <value>'"
+                    )
             if dev.get("bus", True) is False and (
                 port or dev.get("children") or dev["provider"] != "qemu"
             ):
@@ -152,13 +173,27 @@ class Topology:
     def served(self):
         """The devices a server serves, in the order they are listed"""
 
-        return [dev for dev in self.devices if dev["provider"] == "vfio-user"]
+        return [dev for dev in self.devices if dev.get("server")]
+
+    def backend_args(self):
+        """The '-<option> <value>' arguments of the devices' backends, shell-quoted"""
+
+        args = []
+        for dev in self.devices:
+            for backend in dev.get("backends", []):
+                option, value = backend.split(" ", 1)
+                value = value.replace("{socket}", str(dev.get("socket", "")))
+                args += [f"-{option}", shlex.quote(value)]
+
+        return args
 
     @staticmethod
     def bus(dev: dict):
         """The bus 'dev' goes on; None when it goes on none"""
 
         if dev.get("bus", True) is False:
+            return None
+        if dev["provider"] == "qemu" and "device" not in dev:
             return None
 
         return dev.get("port") or f"{dev['name']}_rp"
@@ -252,6 +287,8 @@ class Topology:
             if not dev.get("boot", True):
                 continue
             if dev["provider"] == "qemu":
+                if "device" not in dev:
+                    continue
                 for spec in self.qemu_device_specs(dev):
                     args += ["-device", shlex.quote(spec)]
             else:
@@ -275,7 +312,7 @@ def memory_args(guest_config: dict):
 
 
 class Server:
-    """The process serving a 'vfio-user' device, its pid kept in the guest's home"""
+    """The process serving a device, its pid kept in the guest's home"""
 
     def __init__(self, cijoe, guest_path: Path, dev: dict):
         self.cijoe = cijoe
@@ -443,10 +480,11 @@ def guest_args(topo: Topology, guest_config: dict, guest_path: Path):
     """The qemu arguments of the rig, for Guest.start(extra_args=...)"""
 
     args = []
-    if topo.served():
+    if any(dev["provider"] == "vfio-user" for dev in topo.devices):
         args += memory_args(guest_config)
     args += topo.port_args()
     args += topo.drive_args()
+    args += topo.backend_args()
     args += topo.boot_device_args()
     args += ["-qmp", f"unix:{qmp_path(guest_path)},server,nowait"]
 
@@ -461,7 +499,10 @@ def create_images(cijoe, topo: Topology):
         if not image or Path(image["path"]).exists():
             continue
         Path(image["path"]).parent.mkdir(parents=True, exist_ok=True)
-        err, _ = cijoe.run_local(f"truncate -s {image['size']} {image['path']}")
+        if "from" in image:
+            err, _ = cijoe.run_local(f"cp {image['from']} {image['path']}")
+        else:
+            err, _ = cijoe.run_local(f"truncate -s {image['size']} {image['path']}")
         if err:
             return err
 

@@ -72,6 +72,12 @@ gives its BDF, and, to have it checked, its serial; the host container needs
 `--privileged --ulimit memlock=-1`. CI has no drive to pass through, so
 `make qualify-passthru PASSTHRU=<bdf>` qualifies the rig on a machine that has
 one.
+`uefi-secureboot-tpm` stands in for no machine; it adds the UEFI firmware with
+Microsoft's Secure Boot keys and a TPM, served by swtpm, to the rig it is
+layered on, as a Windows 11 guest needs, as in
+`RIG="storage-node-passthru uefi-secureboot-tpm"`. The Windows image is the
+machine's own; Windows is not ours to publish, so no release carries one, and
+CI, which has none, does not qualify the rig.
 `make qualify-cluster RIG=...` takes rig names or paths to rig files. Each is
 one more config, and later ones win, so a file of your own can change one
 detail of a rig without copying it.
