@@ -11,78 +11,110 @@ A storage and compute lab in two images. Boot a guest with an emulated GPU,
 an emulated RDMA NIC and a rack of NVMe controllers. Run it the same way on
 your own machine and in CI. No GPU, RDMA NIC or KV drive needed.
 
-## What you get
+## ✨ What you get
 
-🚀 **NVMe/RDMA without RDMA hardware.**
-[rocm-ernic](https://github.com/safl/rocm-ernic) emulates an AMD Pensando
-RDMA AI NIC over vfio-user, driven by the guest's `ionic-ernic`, and its
-server runs an NVMe/RDMA target at the far end of the wire. The guest's
-kernel initiator discovers it (`rdma-node-emulated`).
+Two images, released together. The **host** container emulates the
+hardware. The **guest** is the OS your code runs on, booted inside it with
+that hardware plugged in.
 
-🌐 **NVMe/TCP against the Linux kernel target.** The guest exports an
-emulated controller through `nvmet-tcp`, connects to it, and reads back
-through PCIe what it wrote through TCP. The guest is also ready for xNVMe's
-SPDK tests: hugepages, vfio-pci binding and `uio_pci_generic`. SPDK itself is
-xNVMe's to build (`storage-node-emulated`).
+```mermaid
+flowchart LR
+  subgraph host["🏗️ host container: nosi ubuntu-2604-docker"]
+    qemu["🖥️ QEMU<br/>NVMe controllers, PCIe switches"]
+    vfu["🧩 vfio-user servers<br/>rocjitsu GPU, rocm-ernic NIC, vfu_kvssd KV"]
+    pci["🔧 vfio-pci<br/>the machine's own NVMe drive"]
+  end
+  subgraph guest["🐧 guest: nosi ubuntu-2610-rocm"]
+    kernel["Linux 7.3 + io_uring dma-buf<br/>amdgpu, ionic-ernic, uPCIe via DKMS"]
+    user["ROCm 10, rdma-core, your code"]
+  end
+  qemu --> kernel
+  vfu --> kernel
+  pci --> kernel
+  kernel --> user
+```
 
-💾 **NVMe/PCIe across the command sets.** Eleven controllers, each at a
-fixed BDF (`storage-node-emulated`):
+### 🏗️ The host: what is emulated, and how it gets in
+
+The host is nosi's `ubuntu-2604-docker`, Ubuntu 26.04 LTS as an OCI image,
+carrying stock [QEMU](https://www.qemu.org/), OVMF and cijoe, plus the
+device servers below. Run it on your laptop or as a GitHub Actions job
+container. No GPU, RDMA NIC or KV drive needed.
+
+🚀 **An AMD Pensando RDMA AI NIC.**
+[rocm-ernic](https://github.com/safl/rocm-ernic) emulates it over vfio-user,
+and its server runs an NVMe/RDMA target at the far end of the wire.
+
+🎮 **An AMD Instinct MI455X.** rocjitsu, from
+[rocm-systems](https://github.com/safl/rocm-systems), emulates the gfx1250
+GPU over vfio-user, VRAM and all.
+
+💾 **NVMe across the command sets.** Eleven controllers, each at a fixed BDF:
 
 * 📦 NVM, also with a large MDTS
 * 🧱 ZNS, with zone random write areas
 * 🎯 FDP, in a subsystem with eight reclaim unit handles
 * 🔑 KV, served by vfu_kvssd from
-  [vfio-user-kvssd](https://github.com/safl/vfio-user-kvssd) over vfio-user,
-  as stock QEMU has no KV
+  [vfio-user-kvssd](https://github.com/safl/vfio-user-kvssd), as stock QEMU
+  has no KV
 * 🛡️ end-to-end protection: PI types 1, 2 and 3, extended LBA, 64b guard
 
-🎮 **A GPU with peer-to-peer data movement.** rocjitsu, from
-[rocm-systems](https://github.com/safl/rocm-systems), emulates an AMD Instinct
-MI455X, gfx1250, driven by the guest's amdgpu and HIP. A GEMM runs on it. io_uring moves data between an NVMe drive and VRAM through
-dma-buf. The NIC does RDMA WRITE, READ and SEND into and out of VRAM, and its
-server confirms the bytes went through VRAM, not system memory
-(`compute-node-emulated`, `cluster-node-emulated`).
+🔐 **UEFI Secure Boot and TPM 2.0.** OVMF with Microsoft's keys and a TPM
+backed by swtpm, for Windows 11 guests.
 
-🐧 **A guest kernel built for this.** The guest boots Linux 7.3 from
-[safl/linux](https://github.com/safl/linux) (`xnvme-ci/v7.3-2`), with the
-io_uring dma-buf series on top, so io_uring reads and writes straight into
-GPU memory. It is configured with iommufd and the vfio-pci device cdev, PCI
-P2PDMA, dma-buf heaps and udmabuf, and the NVMe/TCP and NVMe/RDMA initiators
-and targets. DKMS builds the rest for that kernel:
+🔌 **Three ways a device gets in:**
+
+* 🖥️ **emulated** by QEMU: NVMe controllers, PCIe switches, the TPM
+* 🧩 **served over vfio-user** by a server in the host container: rocjitsu,
+  rocm-ernic, vfu_kvssd
+* 🔧 **passed through with vfio-pci**: the machine's own NVMe drive, in the
+  same guest as the emulated rigs, checked by serial and refused when the
+  host has it mounted
+
+### 🐧 The guest: the OS your code runs on
+
+The guest is nosi's `ubuntu-2610-rocm`, booting a kernel built for these
+devices.
+
+🐧 **Linux 7.3 with the io_uring dma-buf series**, from
+[safl/linux](https://github.com/safl/linux) (`xnvme-ci/v7.3-2`), so io_uring
+reads and writes straight into GPU memory. Configured with iommufd and the
+vfio-pci device cdev, PCI P2PDMA, dma-buf heaps and udmabuf, and the
+NVMe/TCP and NVMe/RDMA initiators and targets.
+
+🧩 **Drivers built by DKMS for that kernel:**
 
 * 🧠 amdgpu, with the GC 12.1 fixes
 * 📡 `ionic-ernic`, the RDMA NIC's driver
 * 🧪 [uPCIe](https://github.com/safl/upcie) v0.10.4's experimental modules,
   `dmabuf_import` and `iommu_map_pa`
 
-🧰 **Two images from [nosi](https://github.com/safl/nosi).** Both come from
-the **N**iche **O**perating **S**ystem **I**mages, a rolling build of images
-loaded with a curated toolset for systems work
-([catalog](https://safl.dk/nosi)):
+🎛️ **ROCm 10 and the RDMA userspace**, from the Ubuntu archive: `rocm-dev`,
+`rocminfo` and `amd-smi`, rdma-core with the ionic provider, and perftest.
 
-* 🎛️ the guest is `ubuntu-2610-rocm`: Ubuntu 26.10 with ROCm 10 (`rocm-dev`,
-  `rocminfo`, `amd-smi`) and the RDMA userspace (rdma-core with the ionic
-  provider, perftest), all from the Ubuntu archive
-* 🐳 the host is `ubuntu-2604-docker`: Ubuntu 26.04 LTS as an OCI image, with
-  QEMU, OVMF and cijoe to boot the guests
-* 🛠️ both carry nosi's headless base: gcc, clang, rustc and zig, meson,
-  ninja, cmake and cargo, gdb with gdb-dashboard and lldb, perf, strace and
-  valgrind, nvme-cli and smartmontools, and the user-space PCI plumbing of
-  vfio, hugepages and the IOMMU command line
+🛠️ **nosi's curated toolset.** [nosi](https://github.com/safl/nosi), the
+**N**iche **O**perating **S**ystem **I**mages, builds both images with its
+headless base: gcc, clang, rustc and zig, meson, ninja, cmake and cargo, gdb
+with gdb-dashboard and lldb, perf, strace and valgrind, nvme-cli and
+smartmontools, and the vfio, hugepages and IOMMU plumbing for user-space PCI
+drivers. See the [catalog](https://safl.dk/nosi).
 
-🔌 **Three ways a device gets in:**
+### 🔗 Together: data paths you can test without the hardware
 
-* 🖥️ **emulated** by [QEMU](https://www.qemu.org/): NVMe controllers, PCIe switches, a TPM backed by
-  swtpm
-* 🧩 **served over vfio-user** by a device server in the host container:
-  rocjitsu, rocm-ernic, vfu_kvssd
-* 🔧 **passed through with vfio-pci**: the machine's own NVMe drive, in the
-  same guest and environment as the emulated rigs, checked by serial and
-  refused when the host has it mounted (`storage-node-passthru`)
+* ⚡ **NVMe to VRAM.** io_uring moves data between an NVMe drive and the GPU's
+  VRAM through dma-buf.
+* 🌊 **RDMA into VRAM.** The NIC does RDMA WRITE, READ and SEND into and out
+  of VRAM, and its server confirms the bytes went through VRAM, not system
+  memory.
+* 🧮 **Compute.** A GEMM runs on the emulated GPU through HIP.
+* 🚀 **NVMe/RDMA.** The guest's kernel initiator discovers the NIC's target.
+* 🌐 **NVMe/TCP.** The guest exports a controller through `nvmet-tcp`,
+  connects to it, and reads back through PCIe what it wrote through TCP. It is
+  also ready for xNVMe's SPDK tests: hugepages, vfio-pci binding and
+  `uio_pci_generic`.
 
 🪟 **Your guest, our rig.** A rig adds topology and devices to the guest a
-consumer brings: Linux, FreeBSD or Windows. `uefi-secureboot-tpm` adds the
-Secure Boot firmware and TPM 2.0 that Windows 11 needs.
+consumer brings: Linux, FreeBSD or Windows.
 
 ✅ **Qualified before it ships.** Every release boots the guest under the
 host container and passes the checks on the emulated rigs before either
