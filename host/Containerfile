@@ -8,6 +8,14 @@ COPY host/debs/ /tmp/debs/
 RUN apt-get -qy update \
  && DEBIAN_FRONTEND=noninteractive apt-get -qy install --no-install-recommends /tmp/debs/*.deb doxygen fontconfig fonts-dejavu-core graphviz mdadm ovmf pigz swtpm universal-ctags \
  && rm -rf /tmp/debs /var/lib/apt/lists/*
+# xNVMe's source checks and packaging, as its CI runs them in this container:
+# the formatters and linters its pre-commit calls, the man-page generators and
+# the Debian packaging tools
+RUN apt-get -qy update \
+ && DEBIAN_FRONTEND=noninteractive apt-get -qy install --no-install-recommends autotools-dev build-essential cargo clang-format debhelper devscripts dh-make dh-python lintian pre-commit rustfmt shellcheck sudo txt2man \
+ && rm -rf /var/lib/apt/lists/* \
+ && pipx install --global kmdo \
+ && pipx install --global poetry
 COPY cijoe/ /opt/xnvme-devenv/cijoe/
 COPY rigs/ /opt/xnvme-devenv/rigs/
 # The package, with the cijoe it pins; an image without a tool the

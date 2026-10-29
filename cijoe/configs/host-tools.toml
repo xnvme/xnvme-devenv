@@ -16,6 +16,19 @@ version = "oras version"
 [tools.dot]
 version = "dot -V"
 [tools.ctags]
+[tools.clang-format]
+[tools.pre-commit]
+[tools.shellcheck]
+[tools.txt2man]
+version = "txt2man -h"
+[tools.cargo]
+[tools.rustfmt]
+[tools.kmdo]
+version = "kmdo --help"
+[tools.poetry]
+[tools.debuild]
+version = "true"
+[tools.lintian]
 [tools.mdadm]
 [tools.pigz]
 [tools.swtpm]
