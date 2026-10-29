@@ -4,13 +4,12 @@ name: ci
 on:
   push:
     branches: [main]
-    tags: ['v*']
   pull_request:
   workflow_dispatch:
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 defaults:
   run:
@@ -42,7 +41,8 @@ jobs:
       run: make test PYTEST="$PWD/.venv/bin/pytest"
 
   # 'make host ci' is the whole run, as it is locally; the runner's large /mnt
-  # takes the images, and the job only adds publishing on a tag.
+  # takes the images, and the job only adds publishing, on main, once VERSION
+  # names a version that has no tag yet; the release creates the tag.
   release:
     runs-on: ubuntu-24.04
     timeout-minutes: 180
@@ -52,6 +52,21 @@ jobs:
 
     steps:
     - uses: actions/checkout@v6
+
+    - name: Decide whether this run releases, and under which tag
+      id: release
+      env:
+        GH_TOKEN: ${{ github.token }}
+      run: |
+        tag=""
+        if [ "${{ github.event_name }}" = push ] && [ "${{ github.ref }}" = refs/heads/main ]; then
+          tag="v$(cat VERSION)"
+          if gh api "repos/${{ github.repository }}/git/ref/tags/$tag" > /dev/null 2>&1; then
+            tag=""
+          fi
+        fi
+        echo "tag=$tag" >> "$GITHUB_OUTPUT"
+        echo "release: ${tag:-none}"
 
     - name: Install cijoe, which builds the host container from the lock
       run: |
@@ -78,13 +93,13 @@ jobs:
         if-no-files-found: warn
 
     - uses: oras-project/setup-oras@v2
-      if: github.ref_type == 'tag'
+      if: steps.release.outputs.tag != ''
 
     # The guest carries the lock it was made from, so a staged image says what is in it
     - name: Publish the guest and the host under the tag
-      if: github.ref_type == 'tag'
+      if: steps.release.outputs.tag != ''
       env:
-        TAG: ${{ github.ref_name }}
+        TAG: ${{ steps.release.outputs.tag }}
         GH_TOKEN: ${{ github.token }}
       run: |
         echo "$GH_TOKEN" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
@@ -102,9 +117,9 @@ jobs:
     # its .img.gz layer, which cijoe's system_imaging stages; and carries the
     # lock and the cijoe reports of the run that made and qualified it
     - name: Create the GitHub release, with the lock and the cijoe reports
-      if: github.ref_type == 'tag'
+      if: steps.release.outputs.tag != ''
       env:
-        TAG: ${{ github.ref_name }}
+        TAG: ${{ steps.release.outputs.tag }}
         GH_TOKEN: ${{ github.token }}
       run: |
         layer=$(oras manifest fetch "$GUEST_IMAGE:$TAG" | jq -r \
@@ -121,5 +136,5 @@ jobs:
         Attached: the lock it was made from, the guest image's sha256, and the cijoe
         reports of the host build, the derive and the qualification.
         NOTES
-        gh release create "$TAG" --title "$TAG" --notes-file notes.md \
+        gh release create "$TAG" --target "$GITHUB_SHA" --title "$TAG" --notes-file notes.md \
           lock.toml xnvme-devenv-guest-x86_64.img.gz.sha256 cijoe-reports.tar.gz

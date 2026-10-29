@@ -91,11 +91,16 @@ with its own report; `make host` needs cijoe installed (`pipx install
 ./cijoe --include-deps`). It is the same line `.github/workflows/ci.yml` runs
 on every push, so a CI failure reproduces locally with it. `<dir>` needs some
 45G free; `make logs WORKDIR=<dir>` prints the ends of the guests' consoles
-and the servers' logs afterwards. A `v*` tag publishes the
-host as `ghcr.io/xnvme/xnvme-devenv/host:<tag>` and the guest, with the
-lock it was made from, as `ghcr.io/xnvme/xnvme-devenv/guest-ubuntu-2610:<tag>`. It also creates a GitHub release that names both and the guest's layer
+and the servers' logs afterwards.
+
+A release is a commit on main that changes `VERSION`, with the subject
+`ver: bump to vX.Y.Z`. When CI on main is green and no tag `vX.Y.Z` exists
+yet, the same run publishes the host as
+`ghcr.io/xnvme/xnvme-devenv/host:vX.Y.Z` and the guest, with the lock it was
+made from, as `ghcr.io/xnvme/xnvme-devenv/guest-ubuntu-2610:vX.Y.Z`, and
+creates the tag with a GitHub release that names both and the guest's layer
 digest to pin, with the lock, the guest image's sha256 and the cijoe reports
-of the run attached.
+of the run attached. Nobody pushes a tag by hand.
 
 ## Licensing
 
