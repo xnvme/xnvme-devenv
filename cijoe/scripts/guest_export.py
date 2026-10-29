@@ -5,8 +5,9 @@ Power the derived guest off and export its disk
 
 Shuts the guest down cleanly, so the image holds a consistent filesystem,
 then flattens its boot image, an overlay on the nosi base, into the qcow2
-qualify boots and the .img.gz a release publishes. The machine-id is cleared
-first, so every guest booted from the image gets its own.
+qualify boots and the .img.gz a release publishes, compressed on every core
+with pigz. The machine-id is cleared first, so every guest booted from the
+image gets its own.
 
 Retargetable: false
 -------------------
@@ -52,6 +53,6 @@ def main(args, cijoe):
         return err
     raw = gz.with_suffix("")
     err, _ = cijoe.run_local(
-        f"qemu-img convert -O raw {qcow2} {raw} && gzip -1 -f {raw} && ls -l {gz}"
+        f"qemu-img convert -O raw {qcow2} {raw} && pigz -1 -f {raw} && ls -l {gz}"
     )
     return err

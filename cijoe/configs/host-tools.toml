@@ -13,6 +13,7 @@ min = "0.9.67"
 version = "oras version"
 [tools.fc-match]
 [tools.mdadm]
+[tools.pigz]
 [tools.swtpm]
 [tools.vfu_kvssd]
 [tools."/opt/rocjitsu/bin/rocjitsu"]
