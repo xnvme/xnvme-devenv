@@ -63,8 +63,8 @@ side = "host"
 url = "https://github.com/safl/vfio-user-kvssd/releases/download/v0.1.12/vfio-user-kvssd_0.1.12_amd64.deb"
 sha256 = "33973ba2da6b46eca1a098d1586b01e08fb8cbb9f8631fab6eff845282ea4b11"
 
-# safl/upcie v0.10.2: its experimental kernel modules, dmabuf_import and iommu_map_pa, as DKMS
+# safl/upcie v0.10.4: its experimental kernel modules, dmabuf_import and iommu_map_pa, as DKMS
 [[lock.deb]]
 side = "guest"
-url = "https://github.com/safl/upcie/releases/download/v0.10.2/upcie-experimental-dkms_0.10.2_all.deb"
-sha256 = "504facb6794a4557949aacc0bbf0329be8798da89b5884a927ed31d6b2e3330c"
+url = "https://github.com/safl/upcie/releases/download/v0.10.4/upcie-experimental-dkms_0.10.4_all.deb"
+sha256 = "273f51554e63f85c60985a34f025b179f41c01d1b9c301a3c74fb8a7673bddc2"
