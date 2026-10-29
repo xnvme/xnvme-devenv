@@ -130,7 +130,7 @@ the same way:
 xNVMe's CI uses all three, so one host container covers its Linux, FreeBSD
 and Windows jobs. For Linux development on the emulated GPU and NIC, the
 shipped guest is the one to use, and the one the sections above
-describes.
+describe.
 
 ✅ **Qualified before it ships.** Every release boots the guest under the
 host container and passes the checks on the emulated rigs before either
