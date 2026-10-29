@@ -73,8 +73,10 @@ backed by swtpm, for Windows 11 guests.
 
 ### 🐧 The guest: the OS your code runs on
 
-The guest is nosi's `ubuntu-2610-rocm`, booting a kernel built for these
-devices.
+The guest this repository ships is derived from nosi's `ubuntu-2610-rocm`,
+booting a kernel built for these devices. It is the guest for Linux
+development against the emulated GPU and NIC. It is not the only guest the
+rigs boot; see [Your guest, our rig](#-your-guest-our-rig).
 
 🐧 **Linux 7.3 with the io_uring dma-buf series**, from
 [safl/linux](https://github.com/safl/linux) (`xnvme-ci/v7.3-2`), so io_uring
@@ -113,8 +115,22 @@ drivers. See the [catalog](https://safl.dk/nosi).
   also ready for xNVMe's SPDK tests: hugepages, vfio-pci binding and
   `uio_pci_generic`.
 
-🪟 **Your guest, our rig.** A rig adds topology and devices to the guest a
-consumer brings: Linux, FreeBSD or Windows.
+### 🪟 Your guest, our rig
+
+The rigs are not tied to the guest shipped here. A rig adds topology and
+devices to whatever guest a consumer boots, and the host container runs it
+the same way:
+
+* 🐧 **Linux**: the shipped guest, or any other, such as the Debian 13 guest
+  xNVMe verifies its transports on with a stock kernel
+* 😈 **FreeBSD**: xNVMe's FreeBSD 14 guest boots on the same NVMe rigs
+* 🪟 **Windows**: xNVMe's Windows 11 guest boots on `uefi-secureboot-tpm`,
+  layered on a storage rig, for its Secure Boot firmware and TPM 2.0
+
+xNVMe's CI uses all three, so one host container covers its Linux, FreeBSD
+and Windows jobs. For Linux development on the emulated GPU and NIC, the
+shipped guest is the one to use, and the one the sections above
+describes.
 
 ✅ **Qualified before it ships.** Every release boots the guest under the
 host container and passes the checks on the emulated rigs before either
