@@ -17,23 +17,6 @@ Two images, released together. The **host** container emulates the
 hardware. The **guest** is the OS your code runs on, booted inside it with
 that hardware plugged in.
 
-```mermaid
-flowchart LR
-  subgraph host["🏗️ host container: nosi ubuntu-2604-docker"]
-    qemu["🖥️ QEMU<br/>NVMe controllers, PCIe switches"]
-    vfu["🧩 vfio-user servers<br/>rocjitsu GPU, rocm-ernic NIC, vfu_kvssd KV"]
-    pci["🔧 vfio-pci<br/>the machine's own NVMe drive"]
-  end
-  subgraph guest["🐧 guest: nosi ubuntu-2610-rocm"]
-    kernel["Linux 7.3 + io_uring dma-buf<br/>amdgpu, ionic-ernic, uPCIe via DKMS"]
-    user["ROCm 10, rdma-core, your code"]
-  end
-  qemu --> kernel
-  vfu --> kernel
-  pci --> kernel
-  kernel --> user
-```
-
 ### 🏗️ The host: what is emulated, and how it gets in
 
 The host is nosi's `ubuntu-2604-docker`, Ubuntu 26.04 LTS as an OCI image,
@@ -179,6 +162,26 @@ is named for the machine it stands in for and where its devices come from.
 | `uefi-secureboot-tpm` | UEFI firmware with Microsoft's Secure Boot keys and a TPM, layered on another rig |
 
 ### Topologies
+
+How the two images fit together, whatever the rig:
+
+```mermaid
+flowchart LR
+  subgraph host["🏗️ host container: nosi ubuntu-2604-docker"]
+    qemu["🖥️ QEMU<br/>NVMe controllers, PCIe switches"]
+    vfu["🧩 vfio-user servers<br/>rocjitsu GPU, rocm-ernic NIC, vfu_kvssd KV"]
+    pci["🔧 vfio-pci<br/>the machine's own NVMe drive"]
+  end
+  subgraph guest["🐧 guest: nosi ubuntu-2610-rocm"]
+    kernel["Linux 7.3 + io_uring dma-buf<br/>amdgpu, ionic-ernic, uPCIe via DKMS"]
+    user["ROCm 10, rdma-core, your code"]
+  end
+  qemu --> kernel
+  vfu --> kernel
+  pci --> kernel
+  kernel --> user
+```
+
 
 Drawn from the rig files. Each switch and each device without a `port` sits
 on a root port of its own, named as `rig.py` names it. Green is emulated by
