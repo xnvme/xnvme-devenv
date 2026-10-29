@@ -36,25 +36,25 @@ GPU over vfio-user, VRAM and all.
 
 💾 **NVMe across the command sets.** Eleven controllers, each at a fixed BDF:
 
-📦 NVM, also with a large MDTS\
-🧱 ZNS, with zone random write areas\
-🎯 FDP, in a subsystem with eight reclaim unit handles\
-🔑 KV, served by vfu_kvssd from
-[vfio-user-kvssd](https://github.com/safl/vfio-user-kvssd), as stock QEMU
-has no KV\
-🛡️ end-to-end protection: PI types 1, 2 and 3, extended LBA, 64b guard
+* 📦 NVM, also with a large MDTS
+* 🧱 ZNS, with zone random write areas
+* 🎯 FDP, in a subsystem with eight reclaim unit handles
+* 🔑 KV, served by vfu_kvssd from
+  [vfio-user-kvssd](https://github.com/safl/vfio-user-kvssd), as stock QEMU
+  has no KV
+* 🛡️ end-to-end protection: PI types 1, 2 and 3, extended LBA, 64b guard
 
 🔐 **UEFI Secure Boot and TPM 2.0.** OVMF with Microsoft's keys and a TPM
 backed by swtpm, for Windows 11 guests.
 
 🔌 **Three ways a device gets in:**
 
-🖥️ **emulated** by QEMU: NVMe controllers, PCIe switches, the TPM\
-🧩 **served over vfio-user** by a server in the host container: rocjitsu,
-rocm-ernic, vfu_kvssd\
-🔧 **passed through with vfio-pci**: the machine's own NVMe drive, in the
-same guest as the emulated rigs, checked by serial and refused when the
-host has it mounted
+* 🖥️ **emulated** by QEMU: NVMe controllers, PCIe switches, the TPM
+* 🧩 **served over vfio-user** by a server in the host container: rocjitsu,
+  rocm-ernic, vfu_kvssd
+* 🔧 **passed through with vfio-pci**: the machine's own NVMe drive, in the
+  same guest as the emulated rigs, checked by serial and refused when the
+  host has it mounted
 
 ### 🐧 The guest: the OS your code runs on
 
@@ -71,10 +71,10 @@ NVMe/TCP and NVMe/RDMA initiators and targets.
 
 🧩 **Drivers built by DKMS for that kernel:**
 
-🧠 amdgpu, with the GC 12.1 fixes\
-📡 `ionic-ernic`, the RDMA NIC's driver\
-🧪 [uPCIe](https://github.com/safl/upcie) v0.10.4's experimental modules,
-`dmabuf_import` and `iommu_map_pa`
+* 🧠 amdgpu, with the GC 12.1 fixes
+* 📡 `ionic-ernic`, the RDMA NIC's driver
+* 🧪 [uPCIe](https://github.com/safl/upcie) v0.10.4's experimental modules,
+  `dmabuf_import` and `iommu_map_pa`
 
 🎛️ **ROCm 10 and the RDMA userspace**, from the Ubuntu archive: `rocm-dev`,
 `rocminfo` and `amd-smi`, rdma-core with the ionic provider, and perftest.
@@ -88,17 +88,17 @@ drivers. See the [catalog](https://safl.dk/nosi).
 
 ### 🔗 Together: data paths you can test without the hardware
 
-⚡ **NVMe to VRAM.** io_uring moves data between an NVMe drive and the GPU's
-VRAM through dma-buf.\
-🌊 **RDMA into VRAM.** The NIC does RDMA WRITE, READ and SEND into and out
-of VRAM, and its server confirms the bytes went through VRAM, not system
-memory.\
-🧮 **Compute.** A GEMM runs on the emulated GPU through HIP.\
-🚀 **NVMe/RDMA.** The guest's kernel initiator discovers the NIC's target.\
-🌐 **NVMe/TCP.** The guest exports a controller through `nvmet-tcp`,
-connects to it, and reads back through PCIe what it wrote through TCP. It is
-also ready for xNVMe's SPDK tests: hugepages, vfio-pci binding and
-`uio_pci_generic`.
+* ⚡ **NVMe to VRAM.** io_uring moves data between an NVMe drive and the GPU's
+  VRAM through dma-buf.
+* 🌊 **RDMA into VRAM.** The NIC does RDMA WRITE, READ and SEND into and out
+  of VRAM, and its server confirms the bytes went through VRAM, not system
+  memory.
+* 🧮 **Compute.** A GEMM runs on the emulated GPU through HIP.
+* 🚀 **NVMe/RDMA.** The guest's kernel initiator discovers the NIC's target.
+* 🌐 **NVMe/TCP.** The guest exports a controller through `nvmet-tcp`,
+  connects to it, and reads back through PCIe what it wrote through TCP. It is
+  also ready for xNVMe's SPDK tests: hugepages, vfio-pci binding and
+  `uio_pci_generic`.
 
 ### 🪟 Your guest, our rig
 
@@ -106,11 +106,11 @@ The rigs are not tied to the guest shipped here. A rig adds topology and
 devices to whatever guest a consumer boots, and the host container runs it
 the same way:
 
-🐧 **Linux**: the shipped guest, or any other, such as the Debian 13 guest
-xNVMe verifies its transports on with a stock kernel\
-😈 **FreeBSD**: xNVMe's FreeBSD 14 guest boots on the same NVMe rigs\
-🪟 **Windows**: xNVMe's Windows 11 guest boots on `uefi-secureboot-tpm`,
-layered on a storage rig, for its Secure Boot firmware and TPM 2.0
+* 🐧 **Linux**: the shipped guest, or any other, such as the Debian 13 guest
+  xNVMe verifies its transports on with a stock kernel
+* 😈 **FreeBSD**: xNVMe's FreeBSD 14 guest boots on the same NVMe rigs
+* 🪟 **Windows**: xNVMe's Windows 11 guest boots on `uefi-secureboot-tpm`,
+  layered on a storage rig, for its Secure Boot firmware and TPM 2.0
 
 xNVMe's CI uses all three, so one host container covers its Linux, FreeBSD
 and Windows jobs. For Linux development on the emulated GPU and NIC, the
