@@ -15,84 +15,111 @@ your own machine and in CI. No GPU, RDMA NIC or KV drive needed.
 
 ## ✨ What you get
 
-Two images, released together. The host container emulates the hardware.
-The guest is the OS your code runs on, booted inside it with that hardware
-plugged in. No GPU, RDMA NIC or KV drive is needed, on a laptop or as a
-GitHub Actions job container.
+Two images, released together. The **host** container emulates the
+hardware. The **guest** is the OS your code runs on, booted inside it with
+that hardware plugged in.
 
-### 🏗️ The host: the devices
+### 🏗️ The host: what is emulated, and how it gets in
 
 The host is nosi's `ubuntu-2604-docker`, Ubuntu 26.04 LTS as an OCI image,
-carrying stock [QEMU](https://www.qemu.org/), OVMF and cijoe, and the device
-servers below.
+carrying stock [QEMU](https://www.qemu.org/), OVMF and cijoe, plus the
+device servers below. Run it on your laptop or as a GitHub Actions job
+container. No GPU, RDMA NIC or KV drive needed.
 
-| Device | Provided by | Gets in as |
-| ------ | ----------- | ---------- |
-| AMD Pensando RDMA AI NIC, with an NVMe/RDMA target at the far end of the wire | [rocm-ernic](https://github.com/safl/rocm-ernic) | vfio-user |
-| AMD Instinct MI455X (gfx1250), VRAM and all | rocjitsu, from [rocm-systems](https://github.com/safl/rocm-systems) | vfio-user |
-| NVMe: NVM (also with a large MDTS), ZNS with zone random write areas, FDP with eight reclaim unit handles, PI types 1, 2 and 3, extended LBA, 64b guard | QEMU | emulated |
-| NVMe: KV, which stock QEMU lacks | vfu_kvssd, from [vfio-user-kvssd](https://github.com/safl/vfio-user-kvssd) | vfio-user |
-| The machine's own NVMe drive, checked by serial and refused while the host has it mounted | the host | vfio-pci |
-| UEFI Secure Boot with Microsoft's keys, and TPM 2.0, for Windows 11 guests | OVMF and swtpm | emulated |
+🚀 **An AMD Pensando RDMA AI NIC.**
+[rocm-ernic](https://github.com/safl/rocm-ernic) emulates it over vfio-user,
+and its server runs an NVMe/RDMA target at the far end of the wire.
+
+🎮 **An AMD Instinct MI455X.** rocjitsu, from
+[rocm-systems](https://github.com/safl/rocm-systems), emulates the gfx1250
+GPU over vfio-user, VRAM and all.
+
+💾 **NVMe across the command sets.** Eleven controllers, each at a fixed BDF:
+
+📦 NVM, also with a large MDTS\
+🧱 ZNS, with zone random write areas\
+🎯 FDP, in a subsystem with eight reclaim unit handles\
+🔑 KV, served by vfu_kvssd from
+[vfio-user-kvssd](https://github.com/safl/vfio-user-kvssd), as stock QEMU
+has no KV\
+🛡️ end-to-end protection: PI types 1, 2 and 3, extended LBA, 64b guard
+
+🔐 **UEFI Secure Boot and TPM 2.0.** OVMF with Microsoft's keys and a TPM
+backed by swtpm, for Windows 11 guests.
+
+🔌 **Three ways a device gets in:**
+
+🖥️ **emulated** by QEMU: NVMe controllers, PCIe switches, the TPM\
+🧩 **served over vfio-user** by a server in the host container: rocjitsu,
+rocm-ernic, vfu_kvssd\
+🔧 **passed through with vfio-pci**: the machine's own NVMe drive, in the
+same guest as the emulated rigs, checked by serial and refused when the
+host has it mounted
 
 ### 🐧 The guest: the OS your code runs on
 
 The guest this repository ships is derived from nosi's `ubuntu-2610-rocm`,
-for Linux development against the emulated GPU and NIC. It is not the only
-guest the rigs boot; see [Your guest, our rig](#-your-guest-our-rig).
+booting a kernel built for these devices. It is the guest for Linux
+development against the emulated GPU and NIC. It is not the only guest the
+rigs boot; see [Your guest, our rig](#-your-guest-our-rig).
 
-🐧 Linux 7.3 from [safl/linux](https://github.com/safl/linux)
-(`xnvme-ci/v7.3-2`), with the io_uring dma-buf series, so io_uring reads and
-writes straight into GPU memory. It is configured with iommufd and the
+🐧 **Linux 7.3 with the io_uring dma-buf series**, from
+[safl/linux](https://github.com/safl/linux) (`xnvme-ci/v7.3-2`), so io_uring
+reads and writes straight into GPU memory. Configured with iommufd and the
 vfio-pci device cdev, PCI P2PDMA, dma-buf heaps and udmabuf, and the
 NVMe/TCP and NVMe/RDMA initiators and targets.
 
-🧩 Drivers built by DKMS for that kernel: amdgpu with the GC 12.1 fixes,
-`ionic-ernic` for the RDMA NIC, and the experimental modules of
-[uPCIe](https://github.com/safl/upcie) v0.10.4, `dmabuf_import` and
-`iommu_map_pa`.
+🧩 **Drivers built by DKMS for that kernel:**
 
-🎛️ ROCm 10 and the RDMA userspace from the Ubuntu archive: `rocm-dev`,
-`rocminfo`, `amd-smi`, rdma-core with the ionic provider, and perftest.
+🧠 amdgpu, with the GC 12.1 fixes\
+📡 `ionic-ernic`, the RDMA NIC's driver\
+🧪 [uPCIe](https://github.com/safl/upcie) v0.10.4's experimental modules,
+`dmabuf_import` and `iommu_map_pa`
 
-🛠️ The toolset of [nosi](https://github.com/safl/nosi), the Niche Operating
-System Images, which builds both images: gcc, clang, rustc and zig, meson,
-ninja, cmake and cargo, gdb and lldb, perf, strace and valgrind, nvme-cli and
-smartmontools, and the vfio, hugepages and IOMMU plumbing user-space PCI
-drivers need. See the [catalog](https://safl.dk/nosi).
+🎛️ **ROCm 10 and the RDMA userspace**, from the Ubuntu archive: `rocm-dev`,
+`rocminfo` and `amd-smi`, rdma-core with the ionic provider, and perftest.
 
-### 🔗 Together: what you can test without the hardware
+🛠️ **nosi's curated toolset.** [nosi](https://github.com/safl/nosi), the
+**N**iche **O**perating **S**ystem **I**mages, builds both images with its
+headless base: gcc, clang, rustc and zig, meson, ninja, cmake and cargo, gdb
+with gdb-dashboard and lldb, perf, strace and valgrind, nvme-cli and
+smartmontools, and the vfio, hugepages and IOMMU plumbing for user-space PCI
+drivers. See the [catalog](https://safl.dk/nosi).
 
-⚡ NVMe to VRAM: io_uring moves data between an NVMe drive and the GPU's
-VRAM through dma-buf.
+### 🔗 Together: data paths you can test without the hardware
 
-🌊 RDMA into VRAM: the NIC does RDMA WRITE, READ and SEND into and out of
-VRAM, and its server confirms the bytes went through VRAM, not system memory.
-
-🧮 Compute: a GEMM runs on the emulated GPU through HIP.
-
-🚀 NVMe/RDMA: the guest's kernel initiator discovers the NIC's target.
-
-🌐 NVMe/TCP: the guest exports a controller through `nvmet-tcp`, connects to
-it, and reads back through PCIe what it wrote through TCP. It is also ready for
-xNVMe's SPDK tests: hugepages, vfio-pci binding and `uio_pci_generic`.
+⚡ **NVMe to VRAM.** io_uring moves data between an NVMe drive and the GPU's
+VRAM through dma-buf.\
+🌊 **RDMA into VRAM.** The NIC does RDMA WRITE, READ and SEND into and out
+of VRAM, and its server confirms the bytes went through VRAM, not system
+memory.\
+🧮 **Compute.** A GEMM runs on the emulated GPU through HIP.\
+🚀 **NVMe/RDMA.** The guest's kernel initiator discovers the NIC's target.\
+🌐 **NVMe/TCP.** The guest exports a controller through `nvmet-tcp`,
+connects to it, and reads back through PCIe what it wrote through TCP. It is
+also ready for xNVMe's SPDK tests: hugepages, vfio-pci binding and
+`uio_pci_generic`.
 
 ### 🪟 Your guest, our rig
 
 The rigs are not tied to the guest shipped here. A rig adds topology and
 devices to whatever guest a consumer boots, and the host container runs it
-the same way. xNVMe's CI boots three kinds on them:
+the same way:
 
-🐧 Linux: the shipped guest, or another, such as the Debian 13 guest xNVMe
-verifies its transports on with a stock kernel
+🐧 **Linux**: the shipped guest, or any other, such as the Debian 13 guest
+xNVMe verifies its transports on with a stock kernel\
+😈 **FreeBSD**: xNVMe's FreeBSD 14 guest boots on the same NVMe rigs\
+🪟 **Windows**: xNVMe's Windows 11 guest boots on `uefi-secureboot-tpm`,
+layered on a storage rig, for its Secure Boot firmware and TPM 2.0
 
-😈 FreeBSD: xNVMe's FreeBSD 14 guest, on the same NVMe rigs
+xNVMe's CI uses all three, so one host container covers its Linux, FreeBSD
+and Windows jobs. For Linux development on the emulated GPU and NIC, the
+shipped guest is the one to use, and the one the sections above
+describe.
 
-🪟 Windows: xNVMe's Windows 11 guest, on `uefi-secureboot-tpm` layered on a
-storage rig, for its Secure Boot firmware and TPM 2.0
-
-Every release boots the guest under the host container and passes the checks
-on the emulated rigs before either image is published.
+✅ **Qualified before it ships.** Every release boots the guest under the
+host container and passes the checks on the emulated rigs before either
+image is published.
 
 ## The images
 
