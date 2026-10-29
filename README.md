@@ -7,6 +7,8 @@
 [![license](https://img.shields.io/badge/license-BSD--3--Clause-blue.svg)](LICENSE)
 [![REUSE](https://img.shields.io/badge/REUSE-compliant-green.svg)](REUSE.toml)
 
+> *This is my env. There are many like it, but this one is mine.*
+
 A storage and compute lab in two images. Boot a guest with an emulated GPU,
 an emulated RDMA NIC and a rack of NVMe controllers. Run it the same way on
 your own machine and in CI. No GPU, RDMA NIC or KV drive needed.
