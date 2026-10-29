@@ -41,8 +41,21 @@ logs:
 		echo "::endgroup::"; \
 	done
 
+# A guest made from the same inputs is staged rather than derived again, unless
+# REUSE=0, which leaves the guest without an inputs hash to be tagged with;
+# DERIVE_REUSED and DERIVE_INPUTS are configs/images.toml's derive.reused_path
+# and derive.inputs_path
+REUSE ?= 1
+DERIVE_REUSED = $(HOME)/system_imaging/disk/xnvme-devenv-guest-x86_64.reused
+DERIVE_INPUTS = $(HOME)/system_imaging/disk/xnvme-devenv-guest-x86_64.inputs
 derive:
+ifeq ($(REUSE),1)
+	cd cijoe && cijoe tasks/guest-reuse.yaml --monitor $(CIJOE_CONFIGS) --output $(CIJOE_OUTPUT)-guest-reuse
+	test -s $(DERIVE_REUSED) || (cd cijoe && cijoe tasks/derive.yaml --monitor $(CIJOE_CONFIGS) --output $(CIJOE_OUTPUT)-derive)
+else
+	rm -f $(DERIVE_REUSED) $(DERIVE_INPUTS)
 	cd cijoe && cijoe tasks/derive.yaml --monitor $(CIJOE_CONFIGS) --output $(CIJOE_OUTPUT)-derive
+endif
 
 # The unit tests of the cijoe scripts; they need cijoe and pytest, not the host
 PYTEST ?= pytest

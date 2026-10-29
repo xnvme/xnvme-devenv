@@ -1,0 +1,11 @@
+---
+doc: |
+  Stage the published guest made from the same inputs, when there is one
+
+  Writes the hash of the guest's inputs, and, when a guest tagged with it is
+  published, stages it as the qcow2 qualify boots and records that it did, so
+  'make derive' skips deriving it again.
+
+steps:
+- name: guest_reuse
+  uses: guest_reuse

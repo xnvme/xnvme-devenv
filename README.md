@@ -99,11 +99,20 @@ on every push, so a CI failure reproduces locally with it. `<dir>` needs some
 45G free; `make logs WORKDIR=<dir>` prints the ends of the guests' consoles
 and the servers' logs afterwards.
 
+Deriving the guest is most of a run, so it is done only for inputs no
+published guest was made from. `make derive` hashes the guest's part of the
+lock, its nosi base, kernel and debs, and what derive runs, and when a guest
+tagged `inputs-<hash>` is published, stages it and qualifies that; `REUSE=0`
+derives regardless. A guest staged so carries the lock of the release that
+made it, whose host pins may be older; the release's own lock is attached to
+it.
+
 A release is a commit on main that changes `VERSION`, with the subject
 `ver: bump to vX.Y.Z`. When CI on main is green and no tag `vX.Y.Z` exists
 yet, the same run publishes the host as
 `ghcr.io/xnvme/xnvme-devenv/host:vX.Y.Z` and the guest, with the lock it was
-made from, as `ghcr.io/xnvme/xnvme-devenv/guest-ubuntu-2610:vX.Y.Z`, and
+made from, as `ghcr.io/xnvme/xnvme-devenv/guest-ubuntu-2610:vX.Y.Z` and
+`:inputs-<hash>`, a guest staged that way tagged again rather than pushed, and
 creates the tag with a GitHub release that names both and the guest's layer
 digest to pin, with the lock, the guest image's sha256 and the cijoe reports
 of the run attached. Nobody pushes a tag by hand.

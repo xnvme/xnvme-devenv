@@ -59,6 +59,12 @@ disk.path = "{{ local.env.HOME }}/system_imaging/disk/xnvme-devenv-guest.qcow2"
 [derive]
 debs = "/tmp/xnvme-devenv/guest-debs"
 gz_path = "{{ local.env.HOME }}/system_imaging/disk/xnvme-devenv-guest-x86_64.img.gz"
+# Where guest_reuse looks for a guest made from the same inputs, the hash of
+# which it writes to inputs_path, and, when it staged one, its tag and layer
+# to reused_path, as the Makefile's DERIVE_REUSED names it
+image = "ghcr.io/xnvme/xnvme-devenv/guest-ubuntu-2610"
+inputs_path = "{{ local.env.HOME }}/system_imaging/disk/xnvme-devenv-guest-x86_64.inputs"
+reused_path = "{{ local.env.HOME }}/system_imaging/disk/xnvme-devenv-guest-x86_64.reused"
 
 # The guest's name for the NIC's RDMA device; the servers are the rig's
 [rocm_ernic.transport]

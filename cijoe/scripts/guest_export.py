@@ -51,6 +51,8 @@ def main(args, cijoe):
     err, _ = cijoe.run_local(f"qemu-img convert -O qcow2 {guest.boot_img} {qcow2}")
     if err:
         return err
+    # The qcow2 is no longer the staged image its stamp names
+    Path(f"{qcow2}.digest").unlink(missing_ok=True)
     raw = gz.with_suffix("")
     err, _ = cijoe.run_local(
         f"qemu-img convert -O raw {qcow2} {raw} && pigz -1 -f {raw} && ls -l {gz}"

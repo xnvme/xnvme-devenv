@@ -91,7 +91,9 @@ jobs:
     - uses: oras-project/setup-oras@v2
       if: steps.release.outputs.tag != ''
 
-    # The guest carries the lock it was made from, so a staged image says what is in it
+    # The guest carries the lock it was made from, so a staged image says what is in it.
+    # It is also tagged with the hash of its inputs, under which a later release
+    # made from the same finds it; a guest staged that way is tagged again, not pushed
     - name: Publish the guest and the host under the tag
       if: steps.release.outputs.tag != ''
       env:
@@ -102,12 +104,18 @@ jobs:
         echo "$GH_TOKEN" | oras login ghcr.io -u "${{ github.actor }}" --password-stdin
         docker tag xnvme-devenv-host:local "$HOST_IMAGE:$TAG"
         docker push "$HOST_IMAGE:$TAG"
-        # Written by the container, as root
-        sudo cp lock.toml /mnt/xnvme-devenv/home/system_imaging/disk/
         cd /mnt/xnvme-devenv/home/system_imaging/disk
-        sha256sum xnvme-devenv-guest-x86_64.img.gz | sudo tee xnvme-devenv-guest-x86_64.img.gz.sha256
-        oras push "$GUEST_IMAGE:$TAG" xnvme-devenv-guest-x86_64.img.gz \
-          xnvme-devenv-guest-x86_64.img.gz.sha256 lock.toml
+        inputs="inputs-$(cat xnvme-devenv-guest-x86_64.inputs 2>/dev/null)"
+        if [ -s xnvme-devenv-guest-x86_64.reused ]; then
+          oras tag "$GUEST_IMAGE:$inputs" "$TAG"
+        else
+          # Written by the container, as root
+          sudo cp "$GITHUB_WORKSPACE/lock.toml" .
+          sha256sum xnvme-devenv-guest-x86_64.img.gz | sudo tee xnvme-devenv-guest-x86_64.img.gz.sha256
+          oras push "$GUEST_IMAGE:$TAG" xnvme-devenv-guest-x86_64.img.gz \
+            xnvme-devenv-guest-x86_64.img.gz.sha256 lock.toml
+          if [ "$inputs" != inputs- ]; then oras tag "$GUEST_IMAGE:$TAG" "$inputs"; fi
+        fi
 
     # The release says what to pin: the host by tag, the guest by the digest of
     # its .img.gz layer, which cijoe's system_imaging stages; and carries the
@@ -121,8 +129,8 @@ jobs:
         layer=$(oras manifest fetch "$GUEST_IMAGE:$TAG" | jq -r \
           '.layers[] | select(.annotations["org.opencontainers.image.title"] == "xnvme-devenv-guest-x86_64.img.gz") | .digest')
         test -n "$layer"
-        sudo tar -czf cijoe-reports.tar.gz -C cijoe cijoe-output-host cijoe-output-derive cijoe-output-qualify-cluster cijoe-output-qualify-pcie-iommu cijoe-output-qualify-pcie-noiommu cijoe-output-qualify-tcp cijoe-output-qualify-rdma cijoe-output-qualify-compute
-        cp /mnt/xnvme-devenv/home/system_imaging/disk/xnvme-devenv-guest-x86_64.img.gz.sha256 .
+        sudo tar -czf cijoe-reports.tar.gz -C cijoe $(cd cijoe && ls -d cijoe-output-*)
+        echo "${layer#sha256:}  xnvme-devenv-guest-x86_64.img.gz" > xnvme-devenv-guest-x86_64.img.gz.sha256
         cat > notes.md <<NOTES
         Host: \`$HOST_IMAGE:$TAG\`
 
@@ -130,7 +138,8 @@ jobs:
         pin it as \`oras://$GUEST_IMAGE@$layer\`.
 
         Attached: the lock it was made from, the guest image's sha256, and the cijoe
-        reports of the host build, the derive and the qualification.
+        reports of the host build, the derive, or the reuse of a guest made from
+        the same inputs, and the qualification.
         NOTES
         gh release create "$TAG" --target "$GITHUB_SHA" --title "$TAG" --notes-file notes.md \
           lock.toml xnvme-devenv-guest-x86_64.img.gz.sha256 cijoe-reports.tar.gz
