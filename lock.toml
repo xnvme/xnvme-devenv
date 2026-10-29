@@ -1,7 +1,7 @@
 # Every input of a release, pinned. A release is these, assembled and
 # qualified; bumping a pin here is how anything in the images moves.
 #
-# It is a cijoe config: the workflows take it with --config next to
+# It is a cijoe config: the tasks take it with --config next to
 # cijoe/configs/images.toml, and the guest artifact a release publishes
 # carries it, so a staged guest says what it was made from.
 

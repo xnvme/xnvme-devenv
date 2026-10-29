@@ -2,7 +2,7 @@
 
 The argument tests check what the rig gives qemu, so they need no qemu. The
 server and QMP tests run a stand-in server and a stand-in QMP socket, so they
-need none either. Real rigs are booted by the qualify workflows.
+need none either. Real rigs are booted by the qualify tasks.
 """
 
 import json

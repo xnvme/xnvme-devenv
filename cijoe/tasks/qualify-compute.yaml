@@ -1,21 +1,17 @@
 ---
 doc: |
-  Qualify an xnvme-devenv guest on the cluster-node-emulated rig
+  Qualify an xnvme-devenv guest on the compute-node-emulated rig
 
-  Boots the derived guest on the cluster-node-emulated rig, rocjitsu's GPU,
-  rocm-ernic's NIC and an NVMe drive behind one PCIe switch, with the NIC
-  present at boot, then plugs the GPU, which udev brings up with the amdgpu
-  the image carries. Then runs a GEMM on the GPU and RDMA WRITE, READ and
-  SEND into and out of VRAM, and checks with the NIC's server that the
-  transfers went through VRAM rather than system memory.
-  Before those, checks that the guest runs our kernel and that io_uring moves
-  data between an emulated NVMe drive and a dma-buf.
+  Boots the derived guest on the compute-node-emulated rig, rocjitsu's GPU and
+  an NVMe drive behind one PCIe switch, then plugs the GPU, which udev brings
+  up with the amdgpu the image carries. Checks that the controller is at the
+  BDF consumers name, that io_uring moves data between the drive and a dma-buf
+  and between the drive and VRAM, and runs a GEMM on the GPU.
 
 steps:
 - name: host_tools
   uses: core.tools_check
-  with:
-    target_name: initiator
+  target: initiator
 
 - name: guest_kill
   uses: rig_guest_kill
@@ -54,11 +50,14 @@ steps:
   run: |
     test {{ target.nvme | length }} -eq 1
 
-- name: test_gpu_and_nic
+- name: test_gpu
   run: |
     test -n "{% for g in target.gpu if g.render %}{{ g.render | first }}{% endfor %}"
     ls {% for g in target.gpu if g.render %}{{ g.render | first }}{% endfor %}
-    test -n "{% for n in target.nic if n.rdma %}{{ n.rdma | first }}{% endfor %}"
+
+- name: test_bdf
+  run: |
+    grep "^beef00ff *$" /sys/bus/pci/devices/0000:03:00.0/nvme/nvme*/serial
 
 # Our kernel, not the stock one, and its io_uring dma-buf support against the
 # emulated NVMe drive
@@ -80,12 +79,6 @@ steps:
   run: |
     rocjitsu-guest-check iouring-vram {% for c in target.nvme.values() if c.serial == config.rig.devices.nvme0.serial %}{{ c.namespaces[0].bdev }}{% endfor %}
 
-- name: test_p2p
-  run: |
-    rocjitsu-guest-check p2p {{ config.rocm_ernic.transport.ibdev }}
-
-- name: check_p2p_through_vram
-  uses: rocm_ernic_peer_check
 
 - name: guest_shutdown
   uses: rig_guest_kill

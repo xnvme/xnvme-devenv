@@ -10,7 +10,7 @@ labels = ["nvm", "rdma", "nvmet", "novec"]
 socket = "{{ local.env.HOME }}/run/vfio-user-rocm-ernic.sock"
 server = "/opt/rocm-ernic/bin/rocm-ernic --socket {socket} --backend nvmeof:size=1G,bs=4096,nqn=nvmet-test,ip=192.168.200.1,port=4420 --log-level info"
 
-# How the guest reaches the target, for the workflows that set up its end. The
+# How the guest reaches the target, for the tasks that set up its end. The
 # target answers on .1, as the backend says, and the guest takes .11. Nothing on
 # the emulated wire answers ARP for the target, so the guest gives it a static
 # neighbour; any link-layer address works, as the emulator routes by queue pair.

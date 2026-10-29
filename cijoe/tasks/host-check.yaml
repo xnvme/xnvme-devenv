@@ -6,5 +6,4 @@ doc: |
 steps:
 - name: host_tools
   uses: core.tools_check
-  with:
-    target_name: initiator
+  target: initiator

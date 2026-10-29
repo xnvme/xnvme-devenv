@@ -1,5 +1,5 @@
 # Assemble and qualify a release from lock.toml. Every step is a cijoe
-# workflow taking lock.toml as config; derive and qualify run inside the host
+# task taking lock.toml as config; derive and qualify run inside the host
 # container, which has QEMU, cijoe and the servers. 'make host ci' is the whole
 # of what CI runs, so a failure there reproduces with the same line.
 
@@ -20,7 +20,7 @@ RIG_CONFIGS = $(foreach r,$(RIG),--config $(if $(findstring /,$(r)),$(abspath $(
 .PHONY: host ci logs derive qualify-cluster qualify-pcie qualify-pcie-iommu qualify-pcie-noiommu qualify-tcp qualify-rdma qualify-compute qualify-passthru test clean
 
 host:
-	cd cijoe && DOCKER="$(DOCKER)" HOST_IMAGE="$(HOST_IMAGE)" cijoe workflows/host.yaml --monitor \
+	cd cijoe && DOCKER="$(DOCKER)" HOST_IMAGE="$(HOST_IMAGE)" cijoe tasks/host.yaml --monitor \
 		--config ../lock.toml --output $(CIJOE_OUTPUT)-host
 
 ci:
@@ -42,7 +42,7 @@ logs:
 	done
 
 derive:
-	cd cijoe && cijoe workflows/derive.yaml --monitor $(CIJOE_CONFIGS) --output $(CIJOE_OUTPUT)-derive
+	cd cijoe && cijoe tasks/derive.yaml --monitor $(CIJOE_CONFIGS) --output $(CIJOE_OUTPUT)-derive
 
 # The unit tests of the cijoe scripts; they need cijoe and pytest, not the host
 PYTEST ?= pytest
@@ -50,29 +50,29 @@ test:
 	cd cijoe && $(PYTEST) -q tests --config configs/images.toml --output $(CIJOE_OUTPUT)-test
 
 qualify-cluster:
-	cd cijoe && cijoe workflows/qualify-cluster.yaml --monitor $(CIJOE_CONFIGS) $(RIG_CONFIGS) --output $(CIJOE_OUTPUT)-qualify-cluster
+	cd cijoe && cijoe tasks/qualify-cluster.yaml --monitor $(CIJOE_CONFIGS) $(RIG_CONFIGS) --output $(CIJOE_OUTPUT)-qualify-cluster
 
 # The storage-node-emulated rig boots with its controllers where consumers expect,
 # with the guest's vIOMMU and without, as xNVMe's matrix tests them
 qualify-pcie: qualify-pcie-iommu qualify-pcie-noiommu
 
 qualify-pcie-iommu:
-	cd cijoe && cijoe workflows/qualify-pcie.yaml --monitor $(CIJOE_CONFIGS) --config ../rigs/storage-node-emulated.toml --output $(CIJOE_OUTPUT)-qualify-pcie-iommu
+	cd cijoe && cijoe tasks/qualify-pcie.yaml --monitor $(CIJOE_CONFIGS) --config ../rigs/storage-node-emulated.toml --output $(CIJOE_OUTPUT)-qualify-pcie-iommu
 
 qualify-pcie-noiommu:
-	cd cijoe && cijoe workflows/qualify-pcie.yaml --monitor $(CIJOE_CONFIGS) --config configs/no-iommu.toml --config ../rigs/storage-node-emulated.toml --output $(CIJOE_OUTPUT)-qualify-pcie-noiommu
+	cd cijoe && cijoe tasks/qualify-pcie.yaml --monitor $(CIJOE_CONFIGS) --config configs/no-iommu.toml --config ../rigs/storage-node-emulated.toml --output $(CIJOE_OUTPUT)-qualify-pcie-noiommu
 
 # The storage-node-emulated rig's nvme3, exported over NVMe/TCP and read back
 qualify-tcp:
-	cd cijoe && cijoe workflows/qualify-tcp.yaml --monitor $(CIJOE_CONFIGS) --config ../rigs/storage-node-emulated.toml --output $(CIJOE_OUTPUT)-qualify-tcp
+	cd cijoe && cijoe tasks/qualify-tcp.yaml --monitor $(CIJOE_CONFIGS) --config ../rigs/storage-node-emulated.toml --output $(CIJOE_OUTPUT)-qualify-tcp
 
 # The rdma-node-emulated rig's NVMe/RDMA target answers the guest's initiator
 qualify-rdma:
-	cd cijoe && cijoe workflows/qualify-rdma.yaml --monitor $(CIJOE_CONFIGS) --config ../rigs/rdma-node-emulated.toml --output $(CIJOE_OUTPUT)-qualify-rdma
+	cd cijoe && cijoe tasks/qualify-rdma.yaml --monitor $(CIJOE_CONFIGS) --config ../rigs/rdma-node-emulated.toml --output $(CIJOE_OUTPUT)-qualify-rdma
 
 # The compute-node-emulated rig's GPU comes up and does I/O with its NVMe drive
 qualify-compute:
-	cd cijoe && cijoe workflows/qualify-compute.yaml --monitor $(CIJOE_CONFIGS) --config ../rigs/compute-node-emulated.toml --output $(CIJOE_OUTPUT)-qualify-compute
+	cd cijoe && cijoe tasks/qualify-compute.yaml --monitor $(CIJOE_CONFIGS) --config ../rigs/compute-node-emulated.toml --output $(CIJOE_OUTPUT)-qualify-compute
 
 # The storage-node-passthru rig drives the machine's own NVMe: PASSTHRU is its
 # host BDF, or MACHINE the machine's config, giving the BDF and more. Run where
@@ -84,7 +84,7 @@ endef
 qualify-passthru:
 	$(if $(MACHINE)$(PASSTHRU),,$(error PASSTHRU must give the drive's BDF, or MACHINE the machine's config))
 	$(if $(PASSTHRU),$(file >cijoe/$(CIJOE_OUTPUT)-passthru.toml,$(PASSTHRU_CONFIG)))
-	cd cijoe && cijoe workflows/qualify-passthru.yaml --monitor $(CIJOE_CONFIGS) --config ../rigs/storage-node-passthru.toml $(if $(PASSTHRU),--config $(CIJOE_OUTPUT)-passthru.toml) $(if $(MACHINE),--config $(abspath $(MACHINE))) --output $(CIJOE_OUTPUT)-qualify-passthru
+	cd cijoe && cijoe tasks/qualify-passthru.yaml --monitor $(CIJOE_CONFIGS) --config ../rigs/storage-node-passthru.toml $(if $(PASSTHRU),--config $(CIJOE_OUTPUT)-passthru.toml) $(if $(MACHINE),--config $(abspath $(MACHINE))) --output $(CIJOE_OUTPUT)-qualify-passthru
 
 clean:
 	rm -rf host/debs cijoe/$(CIJOE_OUTPUT)-* .work
