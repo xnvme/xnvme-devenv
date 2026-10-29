@@ -4,9 +4,9 @@ doc: |
 
   Boots the derived guest with the machine's own NVMe drive passed through,
   which rig_guest_start binds to vfio-pci, and checks that the guest drives it:
-  one controller, not QEMU's (vendor 0x1b36), with a namespace, found in the
-  facts core.facts_gather records by the drive's serial. Needs a machine config
-  giving the drive's host BDF and serial, see rigs/storage-node-passthru.toml.
+  one controller, not QEMU's (vendor 0x1b36), with a namespace, as the facts
+  core.facts_gather records it, with the serial the config gives, if it gives
+  one. Needs the drive's host BDF, see rigs/storage-node-passthru.toml.
 
 steps:
 - name: guest_kill
@@ -37,10 +37,12 @@ steps:
 
 - name: test_drive
   run: |
-    test -n "{% for c in target.nvme.values() if c.serial == config.rig.devices.nvme0.serial %}{{ c.bdf }}{% endfor %}"
-    test "$(cat /sys/bus/pci/devices/{% for c in target.nvme.values() if c.serial == config.rig.devices.nvme0.serial %}{{ c.bdf }}{% endfor %}/vendor)" != 0x1b36
-    ls {% for c in target.nvme.values() if c.serial == config.rig.devices.nvme0.serial %}{{ c.namespaces[0].cdev }}{% endfor %}
-    nvme id-ctrl /dev/{% for name, c in target.nvme.items() if c.serial == config.rig.devices.nvme0.serial %}{{ name }}{% endfor %}
+    {% for name, c in target.nvme.items() %}
+    test -z "{{ config.rig.devices.nvme0.get('serial', '') }}" || test "{{ c.serial }}" = "{{ config.rig.devices.nvme0.get('serial', '') }}"
+    test "$(cat /sys/bus/pci/devices/{{ c.bdf }}/vendor)" != 0x1b36
+    ls {{ c.namespaces[0].cdev }}
+    nvme id-ctrl /dev/{{ name }}
+    {% endfor %}
 
 - name: guest_shutdown
   uses: rig_guest_kill

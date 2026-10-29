@@ -35,8 +35,8 @@ records by it, and by its address only among controllers that share it, as a
 subsystem's do, so nothing depends on how the guest numbers its controllers.
 A 'qemu' device gets it as its
 'serial' property; a 'vfio-user' device's is what its server reports; a
-'vfio-pci' drive's is the drive's own, which the machine's config gives with
-'host', and which is checked against the drive before it is passed through.
+'vfio-pci' drive's is the drive's own, which the machine's config may give
+with 'host', to have it checked against the drive before it is passed through.
 
 A device's 'labels' say what it offers the tests of the rig's users, in xNVMe's
 words, 'nvm', 'zns', 'fdp' and so on, for a consumer to pair with what the
@@ -73,8 +73,9 @@ it and the other endpoints in its IOMMU group are bound to vfio-pci with
 devbind, which takes them from the host, so a device whose namespaces the host
 has mounted, or whose serial is not the one the config gives, is refused. The
 IOMMU must be on, with groups and not in one of the 'off' modes of 'iommu
-show', and memlock unlimited. A rig leaves 'host' and 'serial' to the machine's
-own config, '[rig.devices.<name>] host = "0000:02:00.0"' and its 'serial'.
+show', and memlock unlimited. A rig leaves 'host' to the machine's own config,
+'[rig.devices.<name>] host = "0000:02:00.0"', and with it, optionally, the
+drive's 'serial'.
 
 A device with 'boot = false' is not present at boot: its port and drives are,
 and 'plug()' adds it over QMP, as 'unplug()' removes it. Its children are
@@ -549,9 +550,7 @@ def passthru_problems(dev: dict, sysfs=Path("/sys"), mounts="/proc/mounts"):
     cls = (pci / "class").read_text().strip() if (pci / "class").exists() else ""
     if cls.startswith("0x0108"):
         shown = [c.read_text().strip() for c in pci.glob("nvme/nvme*/serial")]
-        if not dev.get("serial"):
-            problems.append(f"{dev['name']}: an NVMe drive needs its 'serial'")
-        elif shown and dev["serial"] not in shown:
+        if dev.get("serial") and shown and dev["serial"] not in shown:
             problems.append(
                 f"{dev['name']}: {host} is serial {shown[0]}, not {dev['serial']}"
             )

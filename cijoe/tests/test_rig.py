@@ -701,14 +701,16 @@ def test_guest_start_takes_ssh_for_a_guest_without_a_serial_login(
 
 
 
-def test_passthru_needs_the_drives_serial(tmp_path):
+def test_passthru_checks_the_serial_it_is_given(tmp_path):
     sysfs = fake_sysfs(tmp_path / "sys")
     (sysfs / "devices" / "0000:02:00.0" / "class").write_text("0x010802\n")
     dev = {"name": "nvme0", "provider": "vfio-pci", "host": "0000:02:00.0"}
     mounts = tmp_path / "mounts"
     mounts.write_text("\n")
 
-    assert ["needs its 'serial'" in p for p in rig.passthru_problems(dev, sysfs, mounts)] == [True]
+    assert rig.passthru_problems(dev, sysfs, mounts) == []
+    dev["serial"] = "S7HENU0Y551082W"
+    assert rig.passthru_problems(dev, sysfs, mounts) == []
     dev["serial"] = "OTHERDRIVE"
     problems = rig.passthru_problems(dev, sysfs, mounts)
     assert len(problems) == 1 and "is serial S7HENU0Y551082W, not OTHERDRIVE" in problems[0]

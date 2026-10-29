@@ -74,12 +74,17 @@ qualify-rdma:
 qualify-compute:
 	cd cijoe && cijoe workflows/qualify-compute.yaml --monitor $(CIJOE_CONFIGS) --config ../rigs/compute-node-emulated.toml --output $(CIJOE_OUTPUT)-qualify-compute
 
-# The storage-node-passthru rig drives the machine's own NVMe; MACHINE is the
-# machine's config, giving the drive's host BDF and serial. Run where the host container
-# has /dev/vfio and unlimited memlock: '--privileged --ulimit memlock=-1'.
+# The storage-node-passthru rig drives the machine's own NVMe: PASSTHRU is its
+# host BDF, or MACHINE the machine's config, giving the BDF and more. Run where
+# the host container has /dev/vfio and unlimited memlock: '--privileged --ulimit memlock=-1'.
+define PASSTHRU_CONFIG
+[rig.devices.nvme0]
+host = "$(PASSTHRU)"
+endef
 qualify-passthru:
-	$(if $(MACHINE),,$(error MACHINE must name the machine's config))
-	cd cijoe && cijoe workflows/qualify-passthru.yaml --monitor $(CIJOE_CONFIGS) --config ../rigs/storage-node-passthru.toml --config $(abspath $(MACHINE)) --output $(CIJOE_OUTPUT)-qualify-passthru
+	$(if $(MACHINE)$(PASSTHRU),,$(error PASSTHRU must give the drive's BDF, or MACHINE the machine's config))
+	$(if $(PASSTHRU),$(file >cijoe/$(CIJOE_OUTPUT)-passthru.toml,$(PASSTHRU_CONFIG)))
+	cd cijoe && cijoe workflows/qualify-passthru.yaml --monitor $(CIJOE_CONFIGS) --config ../rigs/storage-node-passthru.toml $(if $(PASSTHRU),--config $(CIJOE_OUTPUT)-passthru.toml) $(if $(MACHINE),--config $(abspath $(MACHINE))) --output $(CIJOE_OUTPUT)-qualify-passthru
 
 clean:
 	rm -rf host/debs cijoe/$(CIJOE_OUTPUT)-* .work
