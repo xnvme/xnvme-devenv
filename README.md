@@ -26,7 +26,7 @@ carrying stock [QEMU](https://www.qemu.org/), OVMF and cijoe, plus the
 device servers below. Run it on your laptop or as a GitHub Actions job
 container. No GPU, RDMA NIC or KV drive needed.
 
-🚀 **An AMD Pensando RDMA AI NIC.**
+🚀 **An AMD Pensando ionic NIC.**
 [rocm-ernic](https://github.com/safl/rocm-ernic) emulates it over vfio-user,
 and its server runs an NVMe/RDMA target at the far end of the wire.
 
