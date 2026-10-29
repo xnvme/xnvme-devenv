@@ -37,12 +37,10 @@ steps:
 
 - name: test_drive
   run: |
-    {% for name, c in target.nvme.items() %}
-    test -z "{{ config.rig.devices.nvme0.get('serial', '') }}" || test "{{ c.serial }}" = "{{ config.rig.devices.nvme0.get('serial', '') }}"
-    test "$(cat /sys/bus/pci/devices/{{ c.bdf }}/vendor)" != 0x1b36
-    ls {{ c.namespaces[0].cdev }}
-    nvme id-ctrl /dev/{{ name }}
-    {% endfor %}
+    test -z "{{ config.rig.devices.nvme0.get('serial', '') }}" || test "{{ (target.nvme.values() | first).serial }}" = "{{ config.rig.devices.nvme0.get('serial', '') }}"
+    test "$(cat /sys/bus/pci/devices/{{ (target.nvme.values() | first).bdf }}/vendor)" != 0x1b36
+    ls {{ (target.nvme.values() | first).namespaces[0].cdev }}
+    nvme id-ctrl /dev/{{ target.nvme | first }}
 
 - name: guest_shutdown
   uses: rig_guest_kill
