@@ -7,8 +7,9 @@ Binds the host devices the rig passes through to vfio-pci, creates the images
 the rig's devices name, starts their servers, in the order the devices are
 listed, then the guest with the rig's PCIe topology and the devices present at
 boot, and waits for it to reach its login prompt, or, for a guest printing none
-to serial, as Windows does, to answer over SSH. See rig.py for what a rig
-describes.
+to serial, as Windows does, to answer over SSH. When it does neither, it logs
+what QEMU and the device servers are doing before it fails. See rig.py for what
+a rig describes.
 
 Retargetable: false
 -------------------
@@ -60,6 +61,8 @@ def main(args, cijoe):
 
     if not guest.is_up(timeout=args.timeout) and cijoe.run("hostname")[0]:
         log.error("the guest reached no login prompt and does not answer over SSH")
+        for line in rig.stall_report(topo, guest.guest_path, guest.get_pid()):
+            log.error(line)
         return errno.ETIMEDOUT
 
     return 0

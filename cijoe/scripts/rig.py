@@ -102,6 +102,7 @@ import shlex
 import signal
 import socket as sockets
 import stat
+import subprocess
 import sys
 import time
 from pathlib import Path
@@ -525,6 +526,107 @@ def stop_servers(cijoe, topo: Topology, guest_path: Path):
 
     for dev in reversed(topo.served()):
         Server(cijoe, guest_path, dev).stop()
+
+
+def _proc_read(path: Path):
+    try:
+        return path.read_text(errors="replace").strip()
+    except OSError as exc:
+        return f"<{exc.strerror}>"
+
+
+def thread_report(pid: int):
+    """Each thread of 'pid': its name, its state, the system call it waits in,
+    with the file that call's first argument names, and its kernel stack
+
+    Read from /proc rather than a debugger, so it works in the host container,
+    which has none; the kernel stacks need root.
+    """
+
+    proc = Path(f"/proc/{pid}")
+    cmdline = _proc_read(proc / "cmdline").replace("\0", " ").strip()
+    lines = [f"pid {pid}: {cmdline}"]
+    try:
+        tids = sorted((proc / "task").iterdir(), key=lambda t: int(t.name))
+    except OSError as exc:
+        return lines + [f"  <{exc.strerror}>"]
+
+    for task in tids:
+        state = next(
+            (
+                ln.split(":", 1)[1].strip()
+                for ln in _proc_read(task / "status").splitlines()
+                if ln.startswith("State:")
+            ),
+            "?",
+        )
+        syscall = _proc_read(task / "syscall")
+        lines.append(
+            f"  tid {task.name} {_proc_read(task / 'comm')}: {state}; "
+            f"wchan {_proc_read(task / 'wchan')}; syscall {syscall}"
+        )
+        fields = syscall.split()
+        if len(fields) > 1 and fields[0].isdigit():
+            try:
+                fd = int(fields[1], 16)
+                lines.append(f"    first argument is fd {fd}: {os.readlink(proc / 'fd' / str(fd))}")
+            except (OSError, ValueError):
+                pass
+        lines += [f"    {frame}" for frame in _proc_read(task / "stack").splitlines()]
+
+    return lines
+
+
+def socket_report(pids: list):
+    """The Unix sockets the processes 'pids' hold, each with its peer's inode,
+    which names the other end of a 'socket:[inode]' in a thread report"""
+
+    try:
+        out = subprocess.run(
+            ["ss", "-xpn"], capture_output=True, text=True, timeout=5
+        ).stdout
+    except (OSError, subprocess.SubprocessError) as exc:
+        return [f"ss -xpn: {exc!r}"]
+
+    keys = [f"pid={pid}," for pid in pids]
+    lines = [line for line in out.splitlines() if any(k in line for k in keys)]
+    return ["unix sockets (ss -xpn):"] + [f"  {line}" for line in lines]
+
+
+def stall_report(topo: Topology, guest_path: Path, qemu_pid: int, timeout=5):
+    """What QEMU and the device servers are doing, for a guest that did not come up
+
+    A QMP command that gets no answer within 'timeout' says QEMU's main loop is
+    itself blocked, which a frozen guest alone would not do.
+    """
+
+    lines = []
+    try:
+        with QMP(qmp_path(guest_path), timeout=timeout) as qmp:
+            lines.append(f"qmp query-status: {qmp.execute('query-status')}")
+    except (OSError, ConnectionError, ValueError) as exc:
+        lines.append(f"qmp query-status: no answer within {timeout}s ({exc!r})")
+
+    pids = []
+    if qemu_pid:
+        lines += thread_report(qemu_pid)
+        pids.append(qemu_pid)
+    else:
+        lines.append("qemu: no pid; it is not running")
+
+    for dev in topo.served():
+        server = Server(None, guest_path, dev)
+        pid = server.pid()
+        if pid:
+            lines += [f"{dev['name']}:"] + thread_report(pid)
+            pids.append(pid)
+        else:
+            lines.append(f"{dev['name']}: server not running; see {server.log}")
+
+    if pids:
+        lines += socket_report(pids)
+
+    return lines
 
 
 def plug(guest_path: Path, topo: Topology, name: str):
