@@ -742,7 +742,7 @@ def test_vfio_pci_device_args_and_plug(tmp_path):
     "serial,ssh_err,expect", [(True, 1, 0), (False, 0, 0), (False, 1, 110)]
 )
 def test_guest_start_takes_ssh_for_a_guest_without_a_serial_login(
-    tmp_path, monkeypatch, serial, ssh_err, expect
+    tmp_path, monkeypatch, caplog, serial, ssh_err, expect
 ):
     import argparse
 
@@ -758,6 +758,9 @@ def test_guest_start_takes_ssh_for_a_guest_without_a_serial_login(
         def is_up(self, timeout):
             return serial
 
+        def get_pid(self):
+            return 0
+
     class Ssh:
         config = argparse.Namespace(options={})
 
@@ -767,6 +770,8 @@ def test_guest_start_takes_ssh_for_a_guest_without_a_serial_login(
     monkeypatch.setattr(rig_guest_start, "Guest", Guest)
     args = argparse.Namespace(guest_name="g", timeout=1)
     assert rig_guest_start.main(args, Ssh()) == expect
+    stalled = "qemu: no pid; it is not running" in caplog.text
+    assert stalled == bool(expect), "the stall report comes with the timeout only"
 
 
 
@@ -807,3 +812,77 @@ def test_qemu_device_gets_its_serial():
 
 
 
+
+# Blocks in a read from its end of a socket pair, as QEMU waits on a server
+BLOCKED_READER = """
+import socket, sys
+a, b = socket.socketpair()
+print(a.fileno(), flush=True)
+a.recv(1)
+"""
+
+
+def test_thread_report_names_the_socket_a_thread_waits_on():
+    proc = subprocess.Popen(
+        [sys.executable, "-c", BLOCKED_READER], stdout=subprocess.PIPE, text=True
+    )
+    try:
+        fd = int(proc.stdout.readline())
+        for _ in range(50):
+            report = rig.thread_report(proc.pid)
+            if f"first argument is fd {fd}: socket:[" in "\n".join(report):
+                break
+            threading.Event().wait(0.1)
+        joined = "\n".join(report)
+        assert report[0].startswith(f"pid {proc.pid}: ")
+        assert f"tid {proc.pid} python" in joined
+        assert f"first argument is fd {fd}: socket:[" in joined
+    finally:
+        proc.kill()
+        proc.wait()
+
+
+def test_thread_report_of_a_process_that_is_gone():
+    proc = subprocess.Popen([sys.executable, "-c", "pass"])
+    proc.wait()
+
+    report = rig.thread_report(proc.pid)
+    assert report[0].startswith(f"pid {proc.pid}: ")
+    assert report[1].startswith("  <")
+
+
+def test_stall_report_with_qemu_answering(tmp_path):
+    fake = FakeQMP(tmp_path / "qmp.sock", {"query-status": {"status": "running"}})
+    dev = fake_server_dev(tmp_path)
+
+    report = rig.stall_report(Topology({"devices": [dev]}), tmp_path, os.getpid())
+    assert report[0] == "qmp query-status: {'return': {'status': 'running'}}"
+    assert f"pid {os.getpid()}: " in report[1]
+    assert f"d: server not running; see {tmp_path / 'd.log'}" in report
+    assert "unix sockets (ss -xpn):" in report
+    fake.listener.close()
+
+
+def test_stall_report_with_qemu_not_answering(tmp_path):
+    # Accepts the connection but never greets, as a QEMU whose main loop is stuck
+    listener = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+    listener.bind(str(tmp_path / "qmp.sock"))
+    listener.listen()
+
+    report = rig.stall_report(Topology({}), tmp_path, 0, timeout=0.2)
+    assert report[0].startswith("qmp query-status: no answer within 0.2s")
+    assert report[1] == "qemu: no pid; it is not running"
+    listener.close()
+
+
+def test_socket_report_pairs_the_ends_of_a_socket(tmp_path):
+    a, b = socket.socketpair()
+    try:
+        report = rig.socket_report([os.getpid()])
+        assert report[0] == "unix sockets (ss -xpn):"
+        ours = [line for line in report[1:] if f"pid={os.getpid()}," in line]
+        inode_a, inode_b = os.fstat(a.fileno()).st_ino, os.fstat(b.fileno()).st_ino
+        assert any(f" {inode_a} " in ln and f" {inode_b} " in ln for ln in ours)
+    finally:
+        a.close()
+        b.close()
